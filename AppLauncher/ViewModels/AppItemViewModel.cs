@@ -34,12 +34,18 @@ public sealed class AppItemViewModel : ObservableObject
     private bool _isIndeterminate;
     private double _progress;
     private bool _isSelected;
+    private bool _isDragging;
 
-    public AppItemViewModel(AppDefinition definition, AppStore store, GitHubService github)
+    /// <param name="move">往前（-1）／往後（+1）移動這個 APP 的位置，由清單提供。</param>
+    public AppItemViewModel(AppDefinition definition, AppStore store, GitHubService github,
+        Action<AppItemViewModel, int>? move = null, Func<AppItemViewModel, int, bool>? canMove = null)
     {
         Definition = definition;
         _store = store;
         _github = github;
+
+        MoveEarlierCommand = new RelayCommand(() => move?.Invoke(this, -1), () => canMove?.Invoke(this, -1) ?? false);
+        MoveLaterCommand = new RelayCommand(() => move?.Invoke(this, 1), () => canMove?.Invoke(this, 1) ?? false);
 
         LaunchCommand = new RelayCommand(Launch, () => SelectedVersion != null);
         DownloadCommand = new RelayCommand(() => _ = DownloadAsync(), () => CanDownload);
@@ -64,6 +70,11 @@ public sealed class AppItemViewModel : ObservableObject
     public ICommand DeleteAllCommand { get; }
     public ICommand OpenFolderCommand { get; }
     public ICommand OpenReleasePageCommand { get; }
+    public ICommand MoveEarlierCommand { get; }
+    public ICommand MoveLaterCommand { get; }
+
+    /// <summary>正在被拖曳（卡片變半透明）。</summary>
+    public bool IsDragging { get => _isDragging; set => SetProperty(ref _isDragging, value); }
 
     public VersionOption? SelectedVersion
     {

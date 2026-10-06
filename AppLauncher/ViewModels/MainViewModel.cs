@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -16,16 +17,22 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private readonly AppStore _store;
     private readonly GitHubService _github;
+    private readonly LauncherSettings _settings;
+    private readonly string _settingsPath;
     private readonly DispatcherTimer _autoRefresh;
     private bool _isRefreshing;
     private string? _statusText;
     private string _filter = "All";
 
-    public MainViewModel(IReadOnlyList<AppDefinition> apps, AppStore store, GitHubService github)
+    public MainViewModel(IReadOnlyList<AppDefinition> apps, AppStore store, GitHubService github,
+        LauncherSettings settings, string settingsPath)
     {
         _store = store;
         _github = github;
-        Apps = apps.Select(a => new AppItemViewModel(a, store, github)).ToList();
+        _settings = settings;
+        _settingsPath = settingsPath;
+        Apps = new ObservableCollection<AppItemViewModel>(LauncherSettings.ApplyOrder(apps, settings.Order)
+            .Select(a => new AppItemViewModel(a, store, github, MoveBy, CanMoveBy)));
         foreach (var app in Apps) app.PropertyChanged += OnAppChanged;
         AppsView = CollectionViewSource.GetDefaultView(Apps);
         AppsView.Filter = o => o is AppItemViewModel app && Filter switch
@@ -49,7 +56,54 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _autoRefresh.Tick += (_, _) => _ = RefreshAsync();
     }
 
-    public IReadOnlyList<AppItemViewModel> Apps { get; }
+    /// <summary>所有 APP，依使用者拖曳排好的順序。</summary>
+    public ObservableCollection<AppItemViewModel> Apps { get; }
+
+    /// <summary>Grid（方格）或 List（條列）。</summary>
+    public string ViewMode
+    {
+        get => _settings.ViewMode;
+        set
+        {
+            if (value != LauncherSettings.ListView) value = LauncherSettings.GridView;
+            if (_settings.ViewMode == value) return;
+            _settings.ViewMode = value;
+            _settings.Save(_settingsPath);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>把 item 移到 target 的位置（拖曳時用）。</summary>
+    public void MoveApp(AppItemViewModel item, AppItemViewModel target)
+    {
+        var from = Apps.IndexOf(item);
+        var to = Apps.IndexOf(target);
+        if (from < 0 || to < 0 || from == to) return;
+        Apps.Move(from, to);
+    }
+
+    /// <summary>往前（-1）或往後（+1）移一格。篩選分頁中跳過看不到的 APP，移動的結果才看得出來。</summary>
+    private void MoveBy(AppItemViewModel item, int delta)
+    {
+        var visible = AppsView.Cast<AppItemViewModel>().ToList();
+        var index = visible.IndexOf(item);
+        if (index < 0 || index + delta < 0 || index + delta >= visible.Count) return;
+        MoveApp(item, visible[index + delta]);
+        SaveOrder();
+    }
+
+    public bool CanMoveBy(AppItemViewModel item, int delta)
+    {
+        var visible = AppsView.Cast<AppItemViewModel>().ToList();
+        var index = visible.IndexOf(item);
+        return index >= 0 && index + delta >= 0 && index + delta < visible.Count;
+    }
+
+    public void SaveOrder()
+    {
+        _settings.Order = Apps.Select(a => a.Definition.Id).ToList();
+        _settings.Save(_settingsPath);
+    }
 
     /// <summary>依上方分頁（全部／已安裝／可更新）篩選後的清單。</summary>
     public ICollectionView AppsView { get; }

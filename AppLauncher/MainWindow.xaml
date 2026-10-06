@@ -18,10 +18,27 @@
         UseLayoutRounding="True">
 
     <Window.Resources>
-        <!-- ===== 一個 APP 的卡片 ===== -->
+        <!-- ===== 「⋯」選單（方格與條列共用） ===== -->
+        <ContextMenu x:Key="AppMenu" x:Shared="False"
+                     DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="往前移" Tag="&#xE72B;" Command="{Binding MoveEarlierCommand}" />
+            <MenuItem Header="往後移" Tag="&#xE72A;" Command="{Binding MoveLaterCommand}" />
+            <Separator />
+            <MenuItem Header="開啟此版本的資料夾" Tag="&#xE838;" Command="{Binding OpenFolderCommand}" />
+            <MenuItem Header="在 GitHub 查看版本說明" Tag="&#xE774;" Command="{Binding OpenReleasePageCommand}" />
+            <Separator />
+            <MenuItem Header="{Binding DeleteVersionText}" Tag="&#xE74D;" Command="{Binding DeleteSelectedVersionCommand}"
+                      Style="{StaticResource DangerMenuItem}" />
+            <MenuItem Header="刪除所有版本" Tag="&#xE74D;" Command="{Binding DeleteAllCommand}"
+                      Style="{StaticResource DangerMenuItem}" />
+        </ContextMenu>
+
+        <!-- ===== 方格：一個 APP 的卡片 ===== -->
         <DataTemplate x:Key="AppTile" DataType="{x:Type vm:AppItemViewModel}">
             <Border x:Name="Tile" Margin="8" CornerRadius="16" BorderThickness="1"
-                    Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource LineBrush}">
+                    Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource LineBrush}"
+                    AllowDrop="True" PreviewMouseLeftButtonDown="Item_PreviewMouseLeftButtonDown"
+                    PreviewMouseMove="Item_PreviewMouseMove" DragOver="Item_DragOver" Drop="Item_Drop">
                 <Border.Effect>
                     <DropShadowEffect x:Name="Shadow" BlurRadius="18" ShadowDepth="2" Direction="270"
                                       Color="{DynamicResource ShadowColor}" Opacity="{DynamicResource ShadowOpacity}" />
@@ -160,28 +177,27 @@
                               HorizontalAlignment="Left" VerticalAlignment="Top" Opacity="0"
                               ToolTip="勾選後可以批次下載或刪除" />
 
+                    <!-- 上方中間的拖曳提示：滑鼠移上去才出現 -->
+                    <TextBlock x:Name="Grip" Text="&#xE76F;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                               Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Top"
+                               Margin="0,6,0,0" Opacity="0" ToolTip="拖曳卡片可以調整位置" />
+
                     <!-- 右上角的更多選單 -->
                     <Button Style="{StaticResource IconButton}" Content="&#xE712;" ToolTip="更多" Click="MoreButton_Click"
-                            Height="32" Width="32" Margin="0,8,8,0" HorizontalAlignment="Right" VerticalAlignment="Top">
-                        <Button.ContextMenu>
-                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                <MenuItem Header="開啟此版本的資料夾" Tag="&#xE838;" Command="{Binding OpenFolderCommand}" />
-                                <MenuItem Header="在 GitHub 查看版本說明" Tag="&#xE774;" Command="{Binding OpenReleasePageCommand}" />
-                                <Separator />
-                                <MenuItem Header="{Binding DeleteVersionText}" Tag="&#xE74D;" Command="{Binding DeleteSelectedVersionCommand}"
-                                          Style="{StaticResource DangerMenuItem}" />
-                                <MenuItem Header="刪除所有版本" Tag="&#xE74D;" Command="{Binding DeleteAllCommand}"
-                                          Style="{StaticResource DangerMenuItem}" />
-                            </ContextMenu>
-                        </Button.ContextMenu>
-                    </Button>
+                            Height="32" Width="32" Margin="0,8,8,0" HorizontalAlignment="Right" VerticalAlignment="Top"
+                            ContextMenu="{StaticResource AppMenu}" />
                 </Grid>
             </Border>
 
             <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsDragging}" Value="True">
+                    <Setter TargetName="Tile" Property="Opacity" Value="0.45" />
+                    <Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                </DataTrigger>
                 <Trigger SourceName="Tile" Property="IsMouseOver" Value="True">
                     <Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource CardHoverBorderBrush}" />
                     <Setter TargetName="Pick" Property="Opacity" Value="1" />
+                    <Setter TargetName="Grip" Property="Opacity" Value="1" />
                     <!-- 滑鼠移上去時陰影變深，像卡片浮起來 -->
                     <Trigger.EnterActions>
                         <BeginStoryboard>
@@ -240,6 +256,191 @@
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
+
+        <!-- ===== 條列：一個 APP 一列 ===== -->
+        <DataTemplate x:Key="AppRow" DataType="{x:Type vm:AppItemViewModel}">
+            <Border x:Name="Row" Margin="8,0,8,8" CornerRadius="12" BorderThickness="1" Padding="10,12,14,12"
+                    Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource LineBrush}"
+                    AllowDrop="True" PreviewMouseLeftButtonDown="Item_PreviewMouseLeftButtonDown"
+                    PreviewMouseMove="Item_PreviewMouseMove" DragOver="Item_DragOver" Drop="Item_Drop">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 拖曳把手 -->
+                    <TextBlock x:Name="Grip" Text="&#xE784;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                               Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="2,0,10,0"
+                               Opacity="0.5" Cursor="SizeAll" ToolTip="拖曳可以調整位置" />
+
+                    <CheckBox Grid.Column="1" IsChecked="{Binding IsSelected}" Margin="0,0,14,0" ToolTip="勾選後可以批次下載或刪除" />
+
+                    <Grid Grid.Column="2" Width="48" Height="48" Margin="0,0,14,0" VerticalAlignment="Center">
+                        <Border CornerRadius="12" Background="{Binding AvatarBrush}"
+                                Visibility="{Binding Icon, Converter={StaticResource NullToVisibility}, ConverterParameter=Invert}">
+                            <TextBlock Text="{Binding Initial}" FontSize="20" FontWeight="SemiBold" Foreground="White"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <Image Source="{Binding Icon}" Width="46" Height="46" RenderOptions.BitmapScalingMode="HighQuality" />
+                        <Border Width="20" Height="20" CornerRadius="10" Background="{DynamicResource UpdateBrush}"
+                                BorderBrush="{DynamicResource CardBrush}" BorderThickness="2"
+                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,-6,0"
+                                Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}"
+                                ToolTip="有新版本可以更新">
+                            <TextBlock Text="&#xE74A;" FontFamily="{StaticResource IconFont}" FontSize="9" FontWeight="Bold"
+                                       Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </Grid>
+
+                    <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,12,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Border Margin="10,0,0,0" ToolTip="{Binding BadgeToolTip}" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource Pill}">
+                                        <Setter Property="Background" Value="{DynamicResource NeutralSoftBrush}" />
+                                        <Setter Property="Padding" Value="8,2" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding BadgeKind}" Value="Update">
+                                                <Setter Property="Background" Value="{DynamicResource UpdateSoftBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding BadgeKind}" Value="Latest">
+                                                <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding BadgeKind}" Value="None">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="BadgeGlyph" FontFamily="{StaticResource IconFont}" FontSize="10"
+                                               VerticalAlignment="Center" Margin="0,1,5,0" />
+                                    <TextBlock x:Name="BadgeLabel" Text="{Binding BadgeText}" FontSize="12" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Description}" Foreground="{DynamicResource SubTextBrush}" FontSize="12.5"
+                                   Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ComboBox ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion}" Width="140"
+                                  IsEnabled="{Binding IsIdle}" Margin="0,0,8,0" ToolTip="選擇要開啟的版本，舊版也可以開"
+                                  Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVisibility}}" />
+                        <Button Style="{StaticResource PrimaryButton}" Command="{Binding LaunchCommand}" Margin="0,0,8,0"
+                                Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE768;" Style="{StaticResource Glyph}" />
+                                <TextBlock Text="開啟" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource UpdateButton}" Command="{Binding DownloadCommand}" Margin="0,0,8,0">
+                            <Button.Visibility>
+                                <MultiBinding Converter="{x:Static local:AllTrueToVisibilityConverter.Instance}">
+                                    <Binding Path="HasUpdate" />
+                                    <Binding Path="IsIdle" />
+                                </MultiBinding>
+                            </Button.Visibility>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" />
+                                <TextBlock Text="{Binding UpdateText}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource PrimaryButton}" Command="{Binding DownloadCommand}" Margin="0,0,8,0">
+                            <Button.Visibility>
+                                <MultiBinding Converter="{x:Static local:AllTrueToVisibilityConverter.Instance}">
+                                    <Binding Path="CanDownload" />
+                                    <Binding Path="IsInstalled" Converter="{x:Static local:NotConverter.Instance}" />
+                                </MultiBinding>
+                            </Button.Visibility>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE896;" Style="{StaticResource Glyph}" />
+                                <TextBlock Text="下載" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource GhostButton}" Command="{Binding CancelCommand}" Content="取消" Margin="0,0,8,0"
+                                Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                        <Button Style="{StaticResource IconButton}" Content="&#xE712;" ToolTip="更多" Click="MoreButton_Click"
+                                ContextMenu="{StaticResource AppMenu}" />
+                    </StackPanel>
+
+                    <!-- 下載進度與訊息 -->
+                    <StackPanel Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" Margin="0,10,0,0"
+                                Visibility="{Binding Status, Converter={StaticResource NullToVisibility}}">
+                        <ProgressBar Margin="0,0,0,6" Value="{Binding Progress, Mode=OneWay}"
+                                     IsIndeterminate="{Binding IsIndeterminate, Mode=OneWay}"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{Binding Status}" FontSize="12" TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource SubTextBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasError}" Value="True">
+                                            <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsDragging}" Value="True">
+                    <Setter TargetName="Row" Property="Opacity" Value="0.45" />
+                </DataTrigger>
+                <Trigger SourceName="Row" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource CardHoverBorderBrush}" />
+                    <Setter TargetName="Grip" Property="Opacity" Value="1" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding BadgeKind}" Value="Update">
+                    <Setter TargetName="BadgeGlyph" Property="Text" Value="&#xE74A;" />
+                    <Setter TargetName="BadgeGlyph" Property="Foreground" Value="{DynamicResource UpdateTextBrush}" />
+                    <Setter TargetName="BadgeLabel" Property="Foreground" Value="{DynamicResource UpdateTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding BadgeKind}" Value="Latest">
+                    <Setter TargetName="BadgeGlyph" Property="Text" Value="&#xE73E;" />
+                    <Setter TargetName="BadgeGlyph" Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                    <Setter TargetName="BadgeLabel" Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding BadgeKind}" Value="Installed">
+                    <Setter TargetName="BadgeGlyph" Property="Text" Value="&#xE73E;" />
+                    <Setter TargetName="BadgeGlyph" Property="Foreground" Value="{DynamicResource NeutralTextBrush}" />
+                    <Setter TargetName="BadgeLabel" Property="Foreground" Value="{DynamicResource NeutralTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding BadgeKind}" Value="Available">
+                    <Setter TargetName="BadgeGlyph" Property="Text" Value="&#xE753;" />
+                    <Setter TargetName="BadgeGlyph" Property="Foreground" Value="{DynamicResource NeutralTextBrush}" />
+                    <Setter TargetName="BadgeLabel" Property="Foreground" Value="{DynamicResource NeutralTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding BadgeKind}" Value="Checking">
+                    <Setter TargetName="BadgeGlyph" Property="Text" Value="&#xE72C;" />
+                    <Setter TargetName="BadgeGlyph" Property="Foreground" Value="{DynamicResource NeutralTextBrush}" />
+                    <Setter TargetName="BadgeLabel" Property="Foreground" Value="{DynamicResource NeutralTextBrush}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <ItemsPanelTemplate x:Key="GridPanel">
+            <UniformGrid Columns="{Binding TileColumns, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Top" />
+        </ItemsPanelTemplate>
+        <ItemsPanelTemplate x:Key="ListPanel">
+            <StackPanel />
+        </ItemsPanelTemplate>
     </Window.Resources>
 
     <Grid>
@@ -327,6 +528,16 @@
                         </StackPanel>
                     </Button>
                     <CheckBox IsChecked="{Binding AllSelected}" Content="全選" Foreground="{DynamicResource SubTextBrush}" />
+
+                    <!-- 方格／條列切換 -->
+                    <Border Margin="16,0,0,0" CornerRadius="10" Padding="3" Background="{DynamicResource NeutralSoftBrush}">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource SegmentButton}" GroupName="ViewMode" Content="&#xE80A;" ToolTip="方格"
+                                         IsChecked="{Binding ViewMode, Converter={StaticResource Equals}, ConverterParameter=Grid}" />
+                            <RadioButton Style="{StaticResource SegmentButton}" GroupName="ViewMode" Content="&#xE8FD;" ToolTip="條列"
+                                         IsChecked="{Binding ViewMode, Converter={StaticResource Equals}, ConverterParameter=List}" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- 分頁 -->
@@ -385,13 +596,21 @@
 
         <!-- ===== APP 卡片 ===== -->
         <ScrollViewer Grid.Row="2" x:Name="TileScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                      Padding="24,4,24,16" SizeChanged="TileScroller_SizeChanged">
-            <ItemsControl ItemsSource="{Binding AppsView}" ItemTemplate="{StaticResource AppTile}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <UniformGrid Columns="{Binding TileColumns, ElementName=Root}" VerticalAlignment="Top" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
+                      Padding="24,4,24,16" SizeChanged="TileScroller_SizeChanged"
+                      AllowDrop="True" PreviewDragOver="TileScroller_PreviewDragOver">
+            <ItemsControl ItemsSource="{Binding AppsView}">
+                <ItemsControl.Style>
+                    <Style TargetType="ItemsControl">
+                        <Setter Property="ItemTemplate" Value="{StaticResource AppTile}" />
+                        <Setter Property="ItemsPanel" Value="{StaticResource GridPanel}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ViewMode}" Value="List">
+                                <Setter Property="ItemTemplate" Value="{StaticResource AppRow}" />
+                                <Setter Property="ItemsPanel" Value="{StaticResource ListPanel}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ItemsControl.Style>
             </ItemsControl>
         </ScrollViewer>
 
@@ -408,7 +627,7 @@
         <Border Grid.Row="3" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0" Padding="32,8">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Right" Foreground="{DynamicResource MutedBrush}" FontSize="12"
-                           Text="資料存在各 APP 自己的資料夾，刪除版本不會刪到資料" />
+                           Text="拖曳可以調整 APP 的位置  ·  刪除版本不會刪到 APP 裡的資料" />
                 <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource SubTextBrush}" FontSize="12" />
             </DockPanel>
         </Border>

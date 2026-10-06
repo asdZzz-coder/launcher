@@ -36,7 +36,8 @@ public partial class App : Application
             return;
         }
 
-        var vm = new MainViewModel(apps, new AppStore(LauncherPaths.AppsRoot), new GitHubService(LauncherPaths.GitHubCache));
+        var vm = new MainViewModel(apps, new AppStore(LauncherPaths.AppsRoot), new GitHubService(LauncherPaths.GitHubCache),
+            LauncherSettings.Load(LauncherPaths.Settings), LauncherPaths.Settings);
         MainWindow = new MainWindow(vm);
         MainWindow.Show();
     }

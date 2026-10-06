@@ -2,6 +2,9 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using AppLauncher.Services;
 using AppLauncher.ViewModels;
 
@@ -35,6 +38,74 @@ public partial class MainWindow : Window
     {
         var usable = e.NewSize.Width - TileScroller.Padding.Left - TileScroller.Padding.Right;
         TileColumns = Math.Clamp((int)(usable / MinTileWidth), 1, 6);
+    }
+
+    // ---------- 拖曳調整順序 ----------
+    // 拖曳時一經過其他 APP 就立刻交換位置（即時預覽），放開滑鼠才存檔。
+
+    private Point _dragStart;
+    private AppItemViewModel? _dragCandidate;
+
+    private void Item_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        // 從按鈕、下拉選單、勾選框開始的按壓是要操作它們，不是拖曳
+        _dragCandidate = IsOnControl(e.OriginalSource as DependencyObject, (DependencyObject)sender)
+            ? null
+            : (sender as FrameworkElement)?.DataContext as AppItemViewModel;
+        _dragStart = e.GetPosition(this);
+    }
+
+    private void Item_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_dragCandidate is not { } item || e.LeftButton != MouseButtonState.Pressed) return;
+        var pos = e.GetPosition(this);
+        if (Math.Abs(pos.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(pos.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+
+        _dragCandidate = null;
+        item.IsDragging = true;
+        try
+        {
+            DragDrop.DoDragDrop((DependencyObject)sender, new DataObject(typeof(AppItemViewModel), item), DragDropEffects.Move);
+        }
+        finally
+        {
+            item.IsDragging = false;
+            _vm.SaveOrder();
+        }
+    }
+
+    private void Item_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = DragDropEffects.None;
+        if (e.Data.GetData(typeof(AppItemViewModel)) is AppItemViewModel dragged &&
+            (sender as FrameworkElement)?.DataContext is AppItemViewModel target)
+        {
+            e.Effects = DragDropEffects.Move;
+            if (dragged != target) _vm.MoveApp(dragged, target);
+        }
+        e.Handled = true;
+    }
+
+    private void Item_Drop(object sender, DragEventArgs e) => e.Handled = true;
+
+    /// <summary>拖到清單上下邊緣時自動捲動。</summary>
+    private void TileScroller_PreviewDragOver(object sender, DragEventArgs e)
+    {
+        const double edge = 48, step = 12;
+        var y = e.GetPosition(TileScroller).Y;
+        if (y < edge) TileScroller.ScrollToVerticalOffset(TileScroller.VerticalOffset - step);
+        else if (y > TileScroller.ActualHeight - edge) TileScroller.ScrollToVerticalOffset(TileScroller.VerticalOffset + step);
+    }
+
+    private static bool IsOnControl(DependencyObject? element, DependencyObject container)
+    {
+        while (element != null && element != container)
+        {
+            if (element is ButtonBase or ComboBox or ScrollBar or TextBoxBase) return true;
+            element = element is Visual or Visual3D ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element);
+        }
+        return false;
     }
 
     /// <summary>「⋯」按鈕用左鍵也能打開選單。</summary>

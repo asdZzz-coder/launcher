@@ -16,4 +16,6 @@ public static class LauncherPaths
     public static string GitHubCache => Path.Combine(Home, "github-cache.json");
 
     public static string IconCache => Path.Combine(Home, "icons");
+
+    public static string Settings => Path.Combine(Home, "settings.json");
 }
