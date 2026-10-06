@@ -20,7 +20,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly LauncherSettings _settings;
     private readonly string _settingsPath;
     private readonly DispatcherTimer _autoRefresh;
+    private readonly DispatcherTimer _runningCheck;
     private bool _isRefreshing;
+    private bool _isCheckingRunning;
     private string? _statusText;
     private string _filter = "All";
 
@@ -60,6 +62,30 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         // 開著的時候每 30 分鐘自動檢查一次更新（有 ETag 快取，不會耗掉 GitHub 查詢次數）
         _autoRefresh = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
         _autoRefresh.Tick += (_, _) => _ = RefreshAsync();
+
+        // 每 2 秒看一下哪些 APP 開著：開著的顯示「關閉」，從 APP 自己的視窗關掉後也會變回「開啟」
+        _runningCheck = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _runningCheck.Tick += (_, _) => _ = CheckRunningAsync();
+    }
+
+    private async Task CheckRunningAsync()
+    {
+        if (_isCheckingRunning) return;
+        var installed = Apps.Where(a => a.IsInstalled).ToList();
+        if (installed.Count == 0) return;
+        _isCheckingRunning = true;
+        try
+        {
+            var checkedAt = DateTime.UtcNow;
+            var exeNames = installed.SelectMany(a => a.Versions).Select(o => o.Version.ExePath).ToList();
+            var running = await Task.Run(() => RunningApps.GetRunningExePaths(exeNames));
+            foreach (var app in installed) app.UpdateRunning(running, checkedAt);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        finally
+        {
+            _isCheckingRunning = false;
+        }
     }
 
     /// <summary>所有 APP，依使用者拖曳排好的順序。</summary>
@@ -179,6 +205,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>淺色（Light）、深色（Dark）或跟著 Windows（System）。</summary>
+    public string Theme
+    {
+        get => _settings.Theme;
+        set
+        {
+            value = ThemeManager.Normalize(value);
+            if (_settings.Theme == value) return;
+            _settings.Theme = value;
+            _settings.Save(_settingsPath);
+            ThemeManager.SetMode(value);
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>把 item 移到 target 的位置（拖曳時用）。</summary>
     public void MoveApp(AppItemViewModel item, AppItemViewModel target)
     {
@@ -275,6 +316,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         foreach (var app in Apps) app.ReloadInstalled();
         UpdateNewFlags();
         _ = Task.WhenAll(Apps.Select(a => a.LoadRepoIconAsync(LauncherPaths.IconCache)));
+        _ = CheckRunningAsync();
+        _runningCheck.Start();
         await RefreshAsync();
         _autoRefresh.Start();
     }
@@ -367,6 +410,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _autoRefresh.Stop();
+        _runningCheck.Stop();
         _github.Dispose();
     }
 }

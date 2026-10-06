@@ -13,7 +13,8 @@ public partial class App : Application
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandledException;
-        ThemeManager.Initialize(this);
+        var settings = LauncherSettings.Load(LauncherPaths.Settings);
+        ThemeManager.Initialize(this, settings.Theme);
 
         // 同時開兩個啟動器會搶著下載、刪除同一個資料夾，所以只允許一個
         _singleInstance = new Mutex(true, $"AppLauncher-{Environment.UserName}", out var isFirst);
@@ -37,7 +38,7 @@ public partial class App : Application
         }
 
         var vm = new MainViewModel(apps, new AppStore(LauncherPaths.AppsRoot), new GitHubService(LauncherPaths.GitHubCache),
-            LauncherSettings.Load(LauncherPaths.Settings), LauncherPaths.Settings);
+            settings, LauncherPaths.Settings);
         MainWindow = new MainWindow(vm);
         MainWindow.Show();
     }

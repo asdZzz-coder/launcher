@@ -5,34 +5,62 @@ using Microsoft.Win32;
 
 namespace AppLauncher.Services;
 
-/// <summary>跟著 Windows「設定 → 個人化 → 色彩」切換淺色／深色，標題列也一起變。</summary>
+/// <summary>
+/// 淺色／深色主題，標題列也一起變。可固定用淺色或深色，
+/// 或跟著 Windows「設定 → 個人化 → 色彩」切換（預設）。
+/// </summary>
 public static partial class ThemeManager
 {
+    public const string SystemTheme = "System";
+    public const string LightTheme = "Light";
+    public const string DarkTheme = "Dark";
+
     private const int DwmUseImmersiveDarkMode = 20;
+    private static Application? _app;
 
     public static bool IsDark { get; private set; }
 
-    public static void Initialize(Application app)
+    /// <summary>System（跟著 Windows）、Light 或 Dark。</summary>
+    public static string Mode { get; private set; } = SystemTheme;
+
+    public static string Normalize(string? mode) => mode is LightTheme or DarkTheme ? mode : SystemTheme;
+
+    public static void Initialize(Application app, string? mode)
     {
-        Apply(app, SystemPrefersDark());
+        _app = app;
+        Mode = Normalize(mode);
+        Apply();
         SystemEvents.UserPreferenceChanged += (_, e) =>
         {
-            if (e.Category != UserPreferenceCategory.General) return;
-            app.Dispatcher.BeginInvoke(() => Apply(app, SystemPrefersDark()));
+            if (e.Category != UserPreferenceCategory.General || Mode != SystemTheme) return;
+            app.Dispatcher.BeginInvoke(Apply);
         };
     }
 
-    private static void Apply(Application app, bool dark)
+    public static void SetMode(string? mode)
     {
+        Mode = Normalize(mode);
+        Apply();
+    }
+
+    private static void Apply()
+    {
+        if (_app == null) return;
+        var dark = Mode switch
+        {
+            LightTheme => false,
+            DarkTheme => true,
+            _ => SystemPrefersDark(),
+        };
         IsDark = dark;
         var palette = new ResourceDictionary
         {
             Source = new Uri($"pack://application:,,,/Themes/{(dark ? "Dark" : "Light")}.xaml"),
         };
         // App.xaml 裡顏色表固定放在第一個，Controls.xaml 在後面用 DynamicResource 參照它
-        app.Resources.MergedDictionaries[0] = palette;
+        _app.Resources.MergedDictionaries[0] = palette;
 
-        foreach (Window window in app.Windows) ApplyTitleBar(window);
+        foreach (Window window in _app.Windows) ApplyTitleBar(window);
     }
 
     /// <summary>深色模式時讓標題列也變深色（Windows 10 20H1 以上）。</summary>

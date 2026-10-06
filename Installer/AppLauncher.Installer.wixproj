@@ -15,7 +15,7 @@
       本機沒有系統管理員權限時也本來就跑不了。安裝與解除安裝已實際測試過。
     -->
     <SuppressValidation>true</SuppressValidation>
-    <AppVersion>1.3.0</AppVersion>
+    <AppVersion>1.4.0</AppVersion>
     <PublishDir>$(MSBuildProjectDirectory)\obj\publish\</PublishDir>
     <DefineConstants>PublishDir=$(PublishDir);AppVersion=$(AppVersion)</DefineConstants>
   </PropertyGroup>

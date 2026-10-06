@@ -36,6 +36,10 @@ public sealed class AppItemViewModel : ObservableObject
     private bool _isSelected;
     private bool _isDragging;
     private bool _isNew;
+    private bool _isClosing;
+    private IReadOnlyList<InstalledVersion> _running = [];
+    private string? _runningStatus;
+    private DateTime _launchedAt;
 
     /// <param name="move">往前（-1）／往後（+1）移動這個 APP 的位置，由清單提供。</param>
     public AppItemViewModel(AppDefinition definition, AppStore store, GitHubService github,
@@ -48,7 +52,8 @@ public sealed class AppItemViewModel : ObservableObject
         MoveEarlierCommand = new RelayCommand(() => move?.Invoke(this, -1), () => canMove?.Invoke(this, -1) ?? false);
         MoveLaterCommand = new RelayCommand(() => move?.Invoke(this, 1), () => canMove?.Invoke(this, 1) ?? false);
 
-        LaunchCommand = new RelayCommand(Launch, () => SelectedVersion != null);
+        LaunchCommand = new RelayCommand(Launch, () => SelectedVersion != null && !IsRunning);
+        CloseCommand = new RelayCommand(() => _ = CloseAsync(), () => IsRunning && !IsClosing);
         DownloadCommand = new RelayCommand(() => _ = DownloadAsync(), () => CanDownload);
         CancelCommand = new RelayCommand(() => _cts?.Cancel(), () => IsBusy);
         DeleteSelectedVersionCommand = new RelayCommand(() => DeleteSelectedVersion(), () => SelectedVersion != null && !IsBusy);
@@ -82,6 +87,7 @@ public sealed class AppItemViewModel : ObservableObject
     public ObservableCollection<VersionOption> Versions { get; } = [];
 
     public ICommand LaunchCommand { get; }
+    public ICommand CloseCommand { get; }
     public ICommand DownloadCommand { get; }
     public ICommand CancelCommand { get; }
     public ICommand DeleteSelectedVersionCommand { get; }
@@ -99,7 +105,11 @@ public sealed class AppItemViewModel : ObservableObject
         get => _selectedVersion;
         set
         {
-            if (SetProperty(ref _selectedVersion, value)) OnPropertyChanged(nameof(DeleteVersionText));
+            if (!SetProperty(ref _selectedVersion, value)) return;
+            OnPropertyChanged(nameof(DeleteVersionText));
+            OnPropertyChanged(nameof(DisplayStatus));
+            OnPropertyChanged(nameof(IsRunning));
+            RelayCommand.Refresh();
         }
     }
 
@@ -114,7 +124,14 @@ public sealed class AppItemViewModel : ObservableObject
     }
 
     public ImageSource? Icon { get => _icon; private set => SetProperty(ref _icon, value); }
-    public string? Status { get => _status; private set => SetProperty(ref _status, value); }
+    public string? Status
+    {
+        get => _status;
+        private set { if (SetProperty(ref _status, value)) OnPropertyChanged(nameof(DisplayStatus)); }
+    }
+
+    /// <summary>卡片下方的文字：有訊息顯示訊息（「已開啟 v…」、下載進度…），沒有就顯示選的版本。</summary>
+    public string? DisplayStatus => Status ?? (SelectedVersion is { } option ? $"版本 {option.Version.Tag}" : null);
     public bool HasError { get => _hasError; private set => SetProperty(ref _hasError, value); }
     public bool IsChecking
     {
@@ -138,6 +155,43 @@ public sealed class AppItemViewModel : ObservableObject
     }
 
     public bool IsIdle => !IsBusy;
+
+    /// <summary>選的這個版本正在執行：「開啟」按鈕換成「關閉」。</summary>
+    public bool IsRunning => SelectedVersion is { } option && _running.Any(v => SamePath(v.ExePath, option.Version.ExePath));
+
+    /// <summary>已按下「關閉」，正在等程式結束。</summary>
+    public bool IsClosing
+    {
+        get => _isClosing;
+        private set { if (SetProperty(ref _isClosing, value)) RelayCommand.Refresh(); }
+    }
+
+    /// <summary>
+    /// 依目前執行中的程式更新「開啟／關閉」按鈕和下方的「已開啟」文字。由主畫面定時呼叫。
+    /// checkedAt 是開始查詢的時間：比剛按「開啟」還早的查詢結果可能還沒看到新開的程式，忽略它。
+    /// </summary>
+    public void UpdateRunning(IReadOnlySet<string> runningExePaths, DateTime checkedAt)
+    {
+        if (checkedAt < _launchedAt || IsClosing) return;
+        SetRunning(Versions.Select(o => o.Version).Where(v => runningExePaths.Contains(Path.GetFullPath(v.ExePath))).ToList());
+    }
+
+    private void SetRunning(IReadOnlyList<InstalledVersion> running)
+    {
+        var wasRunning = IsRunning;
+        _running = running;
+        if (IsRunning != wasRunning)
+        {
+            OnPropertyChanged(nameof(IsRunning));
+            RelayCommand.Refresh();
+        }
+
+        // 下方文字：開著時顯示「已開啟 v…」，關掉後清掉。正在下載或有錯誤訊息時不蓋掉。
+        var text = running.Count == 0 ? null : $"已開啟 {string.Join("、", running.Select(v => v.Tag))}";
+        if (text == _runningStatus) return;
+        if (text == null ? Status == _runningStatus : !IsBusy && !HasError) SetStatus(text);
+        _runningStatus = text;
+    }
 
     public bool IsInstalled => Versions.Count > 0;
     public InstalledVersion? Newest => Versions.FirstOrDefault()?.Version;
@@ -310,11 +364,47 @@ public sealed class AppItemViewModel : ObservableObject
         try
         {
             AppStore.Launch(option.Version);
-            SetStatus($"已開啟 {option.Version.Tag}");
+            _launchedAt = DateTime.UtcNow;
+            if (HasError) SetStatus(null);
+            SetRunning(_running.Append(option.Version).ToList());
         }
         catch (Exception ex) when (ex is Win32Exception or FileNotFoundException or InvalidOperationException)
         {
             SetStatus($"無法開啟：{ex.Message}", error: true);
+        }
+    }
+
+    /// <summary>關閉選的這個版本。先請程式自己關（可以先儲存），關不掉才問要不要強制關閉。</summary>
+    private async Task CloseAsync()
+    {
+        if (SelectedVersion is not { } option || IsClosing) return;
+        var version = option.Version;
+        var processes = RunningApps.Find(version);
+        IsClosing = true;
+        SetStatus($"正在關閉 {version.Tag}…");
+        try
+        {
+            var closed = processes.Count == 0 || await RunningApps.CloseAsync(processes, TimeSpan.FromSeconds(5));
+            if (!closed && Dialogs.Confirm(
+                    $"「{Name}」{version.Tag} 還沒有關閉，可能正在問你要不要儲存，或程式沒有回應。\n\n" +
+                    "要強制關閉嗎？還沒儲存的資料會遺失。"))
+                closed = await RunningApps.KillAsync(processes, TimeSpan.FromSeconds(5));
+
+            if (closed)
+            {
+                SetStatus(null);
+                _runningStatus = null;
+                SetRunning(_running.Where(v => !SamePath(v.ExePath, version.ExePath)).ToList());
+            }
+            else
+            {
+                SetStatus(_runningStatus); // 還開著，維持「已開啟」
+            }
+        }
+        finally
+        {
+            foreach (var process in processes) process.Dispose();
+            IsClosing = false;
         }
     }
 
@@ -373,6 +463,9 @@ public sealed class AppItemViewModel : ObservableObject
         Status = text;
         HasError = error;
     }
+
+    private static bool SamePath(string a, string b) =>
+        string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
 
     private static string FormatSize(long bytes) =>
         bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} MB" : $"{Math.Max(1, bytes / 1024)} KB";

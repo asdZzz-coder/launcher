@@ -65,4 +65,16 @@ public sealed class LauncherSettingsTests : IDisposable
         Assert.Equal(LauncherSettings.GridView, loaded.ViewMode);
         Assert.Empty(loaded.Order);
     }
+
+    [Fact]
+    public void Theme_RoundTrips_UnknownFallsBackToSystem()
+    {
+        Assert.Equal(ThemeManager.SystemTheme, LauncherSettings.Load(_path).Theme);
+
+        new LauncherSettings { Theme = ThemeManager.DarkTheme }.Save(_path);
+        Assert.Equal(ThemeManager.DarkTheme, LauncherSettings.Load(_path).Theme);
+
+        File.WriteAllText(_path, """{ "Theme": "Purple" }""");
+        Assert.Equal(ThemeManager.SystemTheme, LauncherSettings.Load(_path).Theme);
+    }
 }

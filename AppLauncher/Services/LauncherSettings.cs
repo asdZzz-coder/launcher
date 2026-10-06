@@ -4,7 +4,7 @@ using AppLauncher.Models;
 
 namespace AppLauncher.Services;
 
-/// <summary>使用者的偏好：APP 的排列順序、方格或條列。存在 %LocalAppData%\AppLauncher\settings.json。</summary>
+/// <summary>使用者的偏好：APP 的排列順序、方格或條列、淺色或深色。存在 %LocalAppData%\AppLauncher\settings.json。</summary>
 public sealed class LauncherSettings
 {
     public const string GridView = "Grid";
@@ -14,6 +14,9 @@ public sealed class LauncherSettings
     public List<string> Order { get; set; } = [];
 
     public string ViewMode { get; set; } = GridView;
+
+    /// <summary>System（跟著 Windows）、Light 或 Dark。</summary>
+    public string Theme { get; set; } = ThemeManager.SystemTheme;
 
     /// <summary>
     /// 已經看過的 APP id。清單裡出現不在這裡的 APP 就標示「新」。
@@ -28,6 +31,7 @@ public sealed class LauncherSettings
             if (File.Exists(path) && JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(path)) is { } settings)
             {
                 if (settings.ViewMode != ListView) settings.ViewMode = GridView;
+                settings.Theme = ThemeManager.Normalize(settings.Theme);
                 settings.Order ??= [];
                 return settings;
             }

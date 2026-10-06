@@ -56,10 +56,19 @@
                                 <ComboBox ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion}"
                                           IsEnabled="{Binding IsIdle}" Margin="0,0,8,0"
                                           ToolTip="選擇要開啟的版本，舊版也可以開" />
-                                <Button Grid.Column="1" Style="{StaticResource PrimaryButton}" Command="{Binding LaunchCommand}">
+                                <Button Grid.Column="1" Style="{StaticResource PrimaryButton}" Command="{Binding LaunchCommand}"
+                                        Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="&#xE768;" Style="{StaticResource Glyph}" />
                                         <TextBlock Text="開啟" />
+                                    </StackPanel>
+                                </Button>
+                                <!-- 開著的時候換成「關閉」 -->
+                                <Button Grid.Column="1" Style="{StaticResource DangerButton}" Command="{Binding CloseCommand}"
+                                        Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE8BB;" Style="{StaticResource Glyph}" />
+                                        <TextBlock Text="關閉" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -105,8 +114,8 @@
                             </Grid>
 
                             <!-- 訊息 -->
-                            <TextBlock Text="{Binding Status}" FontSize="12" TextWrapping="Wrap" TextAlignment="Center"
-                                       Margin="0,8,0,0" Visibility="{Binding Status, Converter={StaticResource NullToVisibility}}">
+                            <TextBlock Text="{Binding DisplayStatus}" FontSize="12" TextWrapping="Wrap" TextAlignment="Center"
+                                       Margin="0,8,0,0" Visibility="{Binding DisplayStatus, Converter={StaticResource NullToVisibility}}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{DynamicResource SubTextBrush}" />
@@ -340,11 +349,23 @@
                         <ComboBox ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion}" Width="140"
                                   IsEnabled="{Binding IsIdle}" Margin="0,0,8,0" ToolTip="選擇要開啟的版本，舊版也可以開"
                                   Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVisibility}}" />
-                        <Button Style="{StaticResource PrimaryButton}" Command="{Binding LaunchCommand}" Margin="0,0,8,0"
-                                Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVisibility}}">
+                        <Button Style="{StaticResource PrimaryButton}" Command="{Binding LaunchCommand}" Margin="0,0,8,0">
+                            <Button.Visibility>
+                                <MultiBinding Converter="{x:Static local:AllTrueToVisibilityConverter.Instance}">
+                                    <Binding Path="IsInstalled" />
+                                    <Binding Path="IsRunning" Converter="{x:Static local:NotConverter.Instance}" />
+                                </MultiBinding>
+                            </Button.Visibility>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE768;" Style="{StaticResource Glyph}" />
                                 <TextBlock Text="開啟" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource DangerButton}" Command="{Binding CloseCommand}" Margin="0,0,8,0"
+                                Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8BB;" Style="{StaticResource Glyph}" />
+                                <TextBlock Text="關閉" />
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource UpdateButton}" Command="{Binding DownloadCommand}" Margin="0,0,8,0">
@@ -379,11 +400,11 @@
 
                     <!-- 下載進度與訊息 -->
                     <StackPanel Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" Margin="0,10,0,0"
-                                Visibility="{Binding Status, Converter={StaticResource NullToVisibility}}">
+                                Visibility="{Binding DisplayStatus, Converter={StaticResource NullToVisibility}}">
                         <ProgressBar Margin="0,0,0,6" Value="{Binding Progress, Mode=OneWay}"
                                      IsIndeterminate="{Binding IsIndeterminate, Mode=OneWay}"
                                      Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
-                        <TextBlock Text="{Binding Status}" FontSize="12" TextWrapping="Wrap">
+                        <TextBlock Text="{Binding DisplayStatus}" FontSize="12" TextWrapping="Wrap">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Foreground" Value="{DynamicResource SubTextBrush}" />
@@ -467,6 +488,18 @@
                 </StackPanel>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <!-- 淺色／深色／跟著 Windows -->
+                <Border Margin="0,0,10,0" CornerRadius="10" Padding="3" Background="{DynamicResource NeutralSoftBrush}"
+                        VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Style="{StaticResource SegmentButton}" GroupName="Theme" Content="&#xE706;" ToolTip="淺色"
+                                     IsChecked="{Binding Theme, Converter={StaticResource Equals}, ConverterParameter=Light}" />
+                        <RadioButton Style="{StaticResource SegmentButton}" GroupName="Theme" Content="&#xE708;" ToolTip="深色"
+                                     IsChecked="{Binding Theme, Converter={StaticResource Equals}, ConverterParameter=Dark}" />
+                        <RadioButton Style="{StaticResource SegmentButton}" GroupName="Theme" Content="&#xE7F4;" ToolTip="跟著 Windows 的設定"
+                                     IsChecked="{Binding Theme, Converter={StaticResource Equals}, ConverterParameter=System}" />
+                    </StackPanel>
+                </Border>
                 <Button Style="{StaticResource IconButton}" Content="&#xE838;" ToolTip="開啟 APP 存放資料夾"
                         Command="{Binding OpenAppsFolderCommand}" Margin="0,0,6,0" />
                 <Button Style="{StaticResource SecondaryButton}" Command="{Binding RefreshCommand}" ToolTip="向 GitHub 檢查有沒有新版本">
