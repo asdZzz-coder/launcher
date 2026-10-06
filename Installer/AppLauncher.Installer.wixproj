@@ -1,0 +1,22 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <!--
+    產生安裝檔 AppLauncher-Setup.msi：
+      dotnet build Installer -c Release
+    會先把 AppLauncher 發佈成單一 exe，再包進 msi。
+  -->
+  <PropertyGroup>
+    <OutputName>AppLauncher-Setup</OutputName>
+    <Platform>x64</Platform>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <SuppressValidation>false</SuppressValidation>
+    <AppVersion>1.0.0</AppVersion>
+    <PublishDir>$(MSBuildProjectDirectory)\obj\publish\</PublishDir>
+    <DefineConstants>PublishDir=$(PublishDir);AppVersion=$(AppVersion)</DefineConstants>
+  </PropertyGroup>
+
+  <Target Name="PublishLauncher" BeforeTargets="BeforeBuild">
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectDirectory)\..\AppLauncher\AppLauncher.csproj&quot; -c Release -o &quot;$(PublishDir.TrimEnd('\'))&quot; -p:Version=$(AppVersion) -nologo" />
+  </Target>
+
+</Project>

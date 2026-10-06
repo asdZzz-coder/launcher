@@ -1,0 +1,71 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <!--
+    只裝給目前使用者，不需要系統管理員權限：
+    程式放在 %LocalAppData%\Programs\AppLauncher，建立開始功能表與桌面捷徑，
+    並登記到「設定 → 應用程式」以便解除安裝。
+    解除安裝不會刪除啟動器下載的 APP（%LocalAppData%\AppLauncher）。
+  -->
+  <Package Name="APP 啟動器"
+           Manufacturer="asdZzz-coder"
+           Version="$(AppVersion)"
+           UpgradeCode="878EC199-C3E9-462F-AB4F-A916DA252460"
+           Scope="perUser"
+           Codepage="65001"
+           Language="1028">
+
+    <MajorUpgrade DowngradeErrorMessage="已經安裝了較新版本的 APP 啟動器。" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="..\AppLauncher\Assets\app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="AppLauncher" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="Main">
+      <!-- 使用者設定檔裡的元件要用 HKCU 登錄值當 KeyPath（ICE38） -->
+      <Component Id="LauncherExe" Directory="INSTALLFOLDER" Guid="0CF63C8D-ECB7-40B0-87B6-3D14416AF491">
+        <File Id="AppLauncherExe" Source="$(PublishDir)AppLauncher.exe" />
+        <RegistryValue Root="HKCU" Key="Software\asdZzz-coder\AppLauncher" Name="InstallDir"
+                       Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+        <RemoveFolder Id="RemoveProgramsDir" Directory="ProgramsDir" On="uninstall" />
+      </Component>
+
+      <!-- 其餘的 .NET 執行環境與相依檔案 -->
+      <Files Directory="INSTALLFOLDER" Include="$(PublishDir)**">
+        <Exclude Files="$(PublishDir)AppLauncher.exe" />
+        <Exclude Files="$(PublishDir)*.pdb" />
+      </Files>
+
+      <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="7D6B7ED9-C605-48D4-9A8D-895FA63ED56F">
+        <Shortcut Id="StartMenuLink" Name="APP 啟動器" Description="下載、更新和開啟你的 APP"
+                  Target="[INSTALLFOLDER]AppLauncher.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\asdZzz-coder\AppLauncher" Name="StartMenuShortcut"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="DesktopShortcut" Directory="DesktopFolder" Guid="B1E44181-AB80-43C1-A696-4A4DA0D45F7E">
+        <Shortcut Id="DesktopLink" Name="APP 啟動器" Description="下載、更新和開啟你的 APP"
+                  Target="[INSTALLFOLDER]AppLauncher.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\asdZzz-coder\AppLauncher" Name="DesktopShortcut"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </Feature>
+
+    <!-- 安裝完成後自動開啟啟動器 -->
+    <CustomAction Id="LaunchApp" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]AppLauncher.exe&quot;"
+                  Return="asyncNoWait" Impersonate="yes" />
+    <InstallExecuteSequence>
+      <Custom Action="LaunchApp" After="InstallFinalize" Condition="NOT Installed AND NOT REMOVE AND UILevel &gt;= 4" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

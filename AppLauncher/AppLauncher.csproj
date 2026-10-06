@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>AppLauncher</AssemblyName>
+    <Product>APP 啟動器</Product>
+    <Version>1.0.0</Version>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!--
+    發佈時內含 .NET，對方電腦不用另外安裝：dotnet publish AppLauncher -c Release
+    不用 PublishSingleFile：開著「智慧型應用程式控制」的電腦會擋下沒有簽章的單一檔案 exe，
+    一般資料夾形式的發佈則可以正常執行。
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="apps.json" LogicalName="AppLauncher.apps.json" />
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AppLauncher.Tests" />
+  </ItemGroup>
+
+</Project>

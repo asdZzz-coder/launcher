@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="AppLauncher.Tests/AppLauncher.Tests.csproj" />
+  <Project Path="AppLauncher/AppLauncher.csproj" />
+</Solution>

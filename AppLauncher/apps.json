@@ -1,0 +1,42 @@
+[
+  {
+    "id": "carlog",
+    "name": "車輛紀錄",
+    "description": "記錄車子保養和加油，自動算出油耗。",
+    "repo": "asdZzz-coder/car",
+    "asset": "^CarLog-ClickOnce.*\\.zip$",
+    "exe": "CarLog.exe"
+  },
+  {
+    "id": "servicerecord",
+    "name": "居服紀錄表",
+    "description": "居家服務紀錄與薪資計算，可匯出 Excel。",
+    "repo": "asdZzz-coder/excel-mom-",
+    "asset": "^ServiceRecord.*\\.zip$",
+    "exe": "ServiceRecord.exe"
+  },
+  {
+    "id": "materials",
+    "name": "物料整理",
+    "description": "整理部門內物料的名稱、分類、規格與數量。",
+    "repo": "asdZzz-coder/materials",
+    "asset": "^MaterialsKeeper-ClickOnce.*\\.zip$",
+    "exe": "MaterialsKeeper.exe"
+  },
+  {
+    "id": "password",
+    "name": "Password Keeper",
+    "description": "分資料夾保存帳號密碼。",
+    "repo": "asdZzz-coder/password",
+    "asset": "^PasswordKeeper-ClickOnce.*\\.zip$",
+    "exe": "PasswordKeeper.exe"
+  },
+  {
+    "id": "ledger",
+    "name": "簡易記帳",
+    "description": "收支、錢包、存錢目標與圖表。",
+    "repo": "asdZzz-coder/tools",
+    "asset": "^Ledger\\.exe$",
+    "exe": "Ledger.exe"
+  }
+]
