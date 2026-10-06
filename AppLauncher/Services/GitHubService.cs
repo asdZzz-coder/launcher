@@ -119,6 +119,33 @@ public sealed class GitHubService : IDisposable
     }
 
     /// <summary>
+    /// 下載文字檔（線上 APP 清單）。一樣用 ETag 快取，內容沒變時不重抓。
+    /// 失敗時回傳 null，由呼叫的人沿用手上的版本。
+    /// </summary>
+    public async Task<string?> GetTextAsync(string url, CancellationToken ct = default)
+    {
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(20));
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            _cache.TryGetValue(url, out var cached);
+            if (cached?.ETag != null) request.Headers.TryAddWithoutValidation("If-None-Match", cached.ETag);
+
+            using var response = await _http.SendAsync(request, timeout.Token);
+            if (response.StatusCode == HttpStatusCode.NotModified && cached != null) return cached.Json;
+            if (!response.IsSuccessStatusCode) return null;
+            var text = await response.Content.ReadAsStringAsync(timeout.Token);
+            _cache[url] = new CacheEntry(response.Headers.ETag?.ToString(), text);
+            return text;
+        }
+        catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// 下載 repo 裡的圖示（apps.json 的 icon），還沒下載 APP 前顯示用。存在 iconDir，7 天內不重抓。
     /// 抓不到就回傳舊的快取或 null，不影響其他功能。
     /// </summary>

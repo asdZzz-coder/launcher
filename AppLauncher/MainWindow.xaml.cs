@@ -121,7 +121,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (_vm.IsAnyBusy && !Dialogs.Confirm("還有 APP 正在下載，確定要關閉嗎？\n下載到一半的檔案會被丟棄。"))
+        // 更新啟動器時已經問過了，不再問
+        if (_vm.IsAnyBusy && !_vm.LauncherUpdate.IsDownloading && !Dialogs.Confirm("還有 APP 正在下載，確定要關閉嗎？\n下載到一半的檔案會被丟棄。"))
         {
             e.Cancel = true;
             return;

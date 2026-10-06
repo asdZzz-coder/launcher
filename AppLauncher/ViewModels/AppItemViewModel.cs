@@ -35,6 +35,7 @@ public sealed class AppItemViewModel : ObservableObject
     private double _progress;
     private bool _isSelected;
     private bool _isDragging;
+    private bool _isNew;
 
     /// <param name="move">往前（-1）／往後（+1）移動這個 APP 的位置，由清單提供。</param>
     public AppItemViewModel(AppDefinition definition, AppStore store, GitHubService github,
@@ -56,7 +57,24 @@ public sealed class AppItemViewModel : ObservableObject
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
     }
 
-    public AppDefinition Definition { get; }
+    public AppDefinition Definition { get; private set; }
+
+    /// <summary>線上清單改了這個 APP 的設定（名稱、說明、下載檔名規則…）時套用。id 不會變。</summary>
+    public void UpdateDefinition(AppDefinition definition)
+    {
+        if (definition == Definition) return;
+        var iconChanged = definition.Icon != Definition.Icon;
+        Definition = definition;
+        OnPropertyChanged(nameof(Definition));
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Description));
+        OnPropertyChanged(nameof(Initial));
+        if (iconChanged) _repoIcon = null;
+    }
+
+    /// <summary>線上清單新加入、還沒下載過的 APP，卡片上標示「新」。</summary>
+    public bool IsNew { get => _isNew; set => SetProperty(ref _isNew, value); }
+
     public string Name => Definition.Name;
     public string? Description => Definition.Description;
     public string Initial => Name.Length > 0 ? Name[..1].ToUpperInvariant() : "?";

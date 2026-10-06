@@ -15,6 +15,12 @@ public sealed class LauncherSettings
 
     public string ViewMode { get; set; } = GridView;
 
+    /// <summary>
+    /// 已經看過的 APP id。清單裡出現不在這裡的 APP 就標示「新」。
+    /// null 表示第一次使用：當下清單裡的 APP 全部視為看過，不標示。
+    /// </summary>
+    public List<string>? SeenApps { get; set; }
+
     public static LauncherSettings Load(string path)
     {
         try

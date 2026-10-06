@@ -140,8 +140,11 @@
                                 </Border>
                             </Grid>
 
-                            <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold" Margin="0,16,0,0"
-                                       HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0">
+                                <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                                <ContentControl Style="{StaticResource NewPill}" />
+                            </StackPanel>
                             <TextBlock Text="{Binding Description}" Foreground="{DynamicResource SubTextBrush}" FontSize="12.5"
                                        Margin="0,6,0,0" TextAlignment="Center" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
                                        Height="38" LineHeight="19" />
@@ -303,6 +306,7 @@
                     <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,12,0">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <ContentControl Style="{StaticResource NewPill}" />
                             <Border Margin="10,0,0,0" ToolTip="{Binding BadgeToolTip}" VerticalAlignment="Center">
                                 <Border.Style>
                                     <Style TargetType="Border" BasedOn="{StaticResource Pill}">
@@ -476,6 +480,55 @@
 
         <!-- ===== 分頁與批次操作 ===== -->
         <StackPanel Grid.Row="1" Margin="32,22,32,6">
+            <!-- 啟動器本身有新版 -->
+            <Border Background="{DynamicResource AccentSoftBrush}" CornerRadius="12" Padding="16,10" Margin="0,0,0,12"
+                    DataContext="{Binding LauncherUpdate}"
+                    Visibility="{Binding HasUpdate, Converter={StaticResource BoolToVisibility}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Command="{Binding UpdateCommand}" Height="32">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE895;" Style="{StaticResource Glyph}" />
+                            <TextBlock Text="更新啟動器" />
+                        </StackPanel>
+                    </Button>
+                    <Border Width="26" Height="26" CornerRadius="13" Background="{DynamicResource AccentBrush}" Margin="0,0,12,0">
+                        <TextBlock Text="&#xE895;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                   Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                        <TextBlock Text="{Binding Text}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" />
+                        <ProgressBar Margin="0,6,0,0" Value="{Binding Progress, Mode=OneWay}"
+                                     Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorBrush}" FontSize="12" Margin="0,4,0,0"
+                                   TextWrapping="Wrap" Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- GitHub 上新加入的 APP -->
+            <Border Background="{DynamicResource SuccessSoftBrush}" CornerRadius="12" Padding="16,10" Margin="0,0,0,12">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding NewCount}" Value="0">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Command="{Binding DismissNewAppsCommand}"
+                            Height="32" Content="知道了" Foreground="{DynamicResource SuccessTextBrush}" />
+                    <Border Width="26" Height="26" CornerRadius="13" Background="#16A34A" Margin="0,0,12,0">
+                        <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="12" FontWeight="Bold"
+                                   Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="{Binding NewAppsText}" VerticalAlignment="Center" Foreground="{DynamicResource SuccessTextBrush}"
+                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Border>
+
             <!-- 有新版時的提示列 -->
             <Border Background="{DynamicResource UpdateSoftBrush}" CornerRadius="12" Padding="16,10" Margin="0,0,0,16">
                 <Border.Style>
@@ -628,6 +681,8 @@
             <DockPanel>
                 <TextBlock DockPanel.Dock="Right" Foreground="{DynamicResource MutedBrush}" FontSize="12"
                            Text="拖曳可以調整 APP 的位置  ·  刪除版本不會刪到 APP 裡的資料" />
+                <TextBlock DockPanel.Dock="Left" Text="{Binding VersionText}" Foreground="{DynamicResource MutedBrush}" FontSize="12"
+                           Margin="0,0,16,0" />
                 <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource SubTextBrush}" FontSize="12" />
             </DockPanel>
         </Border>

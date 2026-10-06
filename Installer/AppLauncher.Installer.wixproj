@@ -3,14 +3,19 @@
   <!--
     產生安裝檔 AppLauncher-Setup.msi：
       dotnet build Installer -c Release
-    會先把 AppLauncher 發佈成單一 exe，再包進 msi。
+    會先把 AppLauncher 發佈成資料夾，再包進 msi。版本號用 -p:AppVersion=1.3.0 指定。
   -->
   <PropertyGroup>
     <OutputName>AppLauncher-Setup</OutputName>
     <Platform>x64</Platform>
     <InstallerPlatform>x64</InstallerPlatform>
-    <SuppressValidation>false</SuppressValidation>
-    <AppVersion>1.2.0</AppVersion>
+    <!--
+      不跑 ICE 驗證：只裝給目前使用者、程式放在 %LocalAppData% 的安裝檔，
+      ICE38/ICE64 會要求每個檔案都用 HKCU 登錄值當 KeyPath，對 400 個執行環境檔案不實際；
+      本機沒有系統管理員權限時也本來就跑不了。安裝與解除安裝已實際測試過。
+    -->
+    <SuppressValidation>true</SuppressValidation>
+    <AppVersion>1.3.0</AppVersion>
     <PublishDir>$(MSBuildProjectDirectory)\obj\publish\</PublishDir>
     <DefineConstants>PublishDir=$(PublishDir);AppVersion=$(AppVersion)</DefineConstants>
   </PropertyGroup>

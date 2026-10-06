@@ -31,9 +31,15 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _github = github;
         _settings = settings;
         _settingsPath = settingsPath;
-        Apps = new ObservableCollection<AppItemViewModel>(LauncherSettings.ApplyOrder(apps, settings.Order)
-            .Select(a => new AppItemViewModel(a, store, github, MoveBy, CanMoveBy)));
-        foreach (var app in Apps) app.PropertyChanged += OnAppChanged;
+        // 第一次使用：目前清單裡的 APP 都當作看過，不標示「新」
+        if (_settings.SeenApps == null)
+        {
+            _settings.SeenApps = apps.Select(a => a.Id).ToList();
+            _settings.Save(_settingsPath);
+        }
+        Apps = new ObservableCollection<AppItemViewModel>(LauncherSettings.ApplyOrder(apps, settings.Order).Select(CreateItem));
+        LauncherUpdate = new LauncherUpdateViewModel(github, () => IsAnyBusy, CancelAll);
+        DismissNewAppsCommand = new RelayCommand(DismissNewApps);
         AppsView = CollectionViewSource.GetDefaultView(Apps);
         AppsView.Filter = o => o is AppItemViewModel app && Filter switch
         {
@@ -58,6 +64,106 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>所有 APP，依使用者拖曳排好的順序。</summary>
     public ObservableCollection<AppItemViewModel> Apps { get; }
+
+    /// <summary>啟動器本身的更新。</summary>
+    public LauncherUpdateViewModel LauncherUpdate { get; }
+
+    public string VersionText => $"版本 {LauncherUpdateViewModel.CurrentVersion.ToString(3)}";
+
+    private AppItemViewModel CreateItem(AppDefinition definition)
+    {
+        var item = new AppItemViewModel(definition, _store, _github, MoveBy, CanMoveBy);
+        item.PropertyChanged += OnAppChanged;
+        return item;
+    }
+
+    // ---------- 線上 APP 清單 ----------
+
+    /// <summary>線上清單新加入、還沒下載的 APP 數量。</summary>
+    public int NewCount => Apps.Count(a => a.IsNew);
+
+    public string NewAppsText => $"有 {NewCount} 個新的 APP：{string.Join("、", Apps.Where(a => a.IsNew).Select(a => a.Name))}";
+
+    public ICommand DismissNewAppsCommand { get; }
+
+    private void UpdateNewFlags()
+    {
+        var seen = new HashSet<string>(_settings.SeenApps ?? [], StringComparer.OrdinalIgnoreCase);
+        foreach (var app in Apps) app.IsNew = !seen.Contains(app.Definition.Id) && !app.IsInstalled;
+        OnPropertyChanged(nameof(NewCount));
+        OnPropertyChanged(nameof(NewAppsText));
+    }
+
+    private void MarkSeen(IEnumerable<string> ids)
+    {
+        var seen = _settings.SeenApps ??= [];
+        var added = false;
+        foreach (var id in ids)
+        {
+            if (seen.Contains(id, StringComparer.OrdinalIgnoreCase)) continue;
+            seen.Add(id);
+            added = true;
+        }
+        if (added) _settings.Save(_settingsPath);
+        UpdateNewFlags();
+    }
+
+    /// <summary>「知道了」：不再標示目前的新 APP。</summary>
+    private void DismissNewApps() => MarkSeen(Apps.Where(a => a.IsNew).Select(a => a.Definition.Id));
+
+    /// <summary>下載 GitHub 上的 APP 清單，套用新增、修改、移除。自訂清單（apps.json 放在本機）時不做。</summary>
+    private async Task SyncCatalogAsync()
+    {
+        if (Catalog.HasOverride) return;
+        var json = await _github.GetTextAsync(Catalog.RemoteUrl);
+        if (json == null) return; // 連不上就沿用目前的清單
+        IReadOnlyList<AppDefinition> definitions;
+        try
+        {
+            definitions = Catalog.Parse(json);
+        }
+        catch (Exception ex) when (ex is FormatException or System.Text.Json.JsonException)
+        {
+            StatusText = $"GitHub 上的 APP 清單格式有誤，先沿用目前的清單（{ex.Message}）";
+            return;
+        }
+        Catalog.SaveRemoteCache(json);
+        ApplyCatalog(definitions);
+    }
+
+    internal void ApplyCatalog(IReadOnlyList<AppDefinition> definitions)
+    {
+        var byId = definitions.ToDictionary(d => d.Id, StringComparer.OrdinalIgnoreCase);
+
+        // 從清單拿掉的 APP：沒裝的直接移除；有裝的留著，才能繼續開啟或刪除
+        foreach (var app in Apps.ToList())
+        {
+            if (byId.TryGetValue(app.Definition.Id, out var definition))
+                app.UpdateDefinition(definition);
+            else if (!app.IsInstalled && !app.IsBusy)
+            {
+                app.PropertyChanged -= OnAppChanged;
+                Apps.Remove(app);
+            }
+        }
+
+        // 新加入的 APP 排在最後（之後使用者可以自己拖到想要的位置）
+        foreach (var definition in definitions)
+        {
+            if (Apps.Any(a => string.Equals(a.Definition.Id, definition.Id, StringComparison.OrdinalIgnoreCase))) continue;
+            var item = CreateItem(definition);
+            item.ReloadInstalled();
+            Apps.Add(item);
+            _ = item.LoadRepoIconAsync(LauncherPaths.IconCache);
+        }
+
+        foreach (var app in Apps.Where(a => a.Icon == null)) _ = app.LoadRepoIconAsync(LauncherPaths.IconCache);
+        UpdateNewFlags();
+        OnPropertyChanged(nameof(AllCount));
+        OnPropertyChanged(nameof(InstalledCount));
+        OnPropertyChanged(nameof(AllSelected));
+        OnPropertyChanged(nameof(IsViewEmpty));
+    }
 
     /// <summary>Grid（方格）或 List（條列）。</summary>
     public string ViewMode
@@ -167,6 +273,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         await Task.Run(_store.CleanupLeftovers);
         foreach (var app in Apps) app.ReloadInstalled();
+        UpdateNewFlags();
         _ = Task.WhenAll(Apps.Select(a => a.LoadRepoIconAsync(LauncherPaths.IconCache)));
         await RefreshAsync();
         _autoRefresh.Start();
@@ -179,8 +286,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         StatusText = "正在檢查更新…";
         try
         {
+            await SyncCatalogAsync();
             foreach (var app in Apps) app.ReloadInstalled();
-            await Task.WhenAll(Apps.Select(a => a.CheckAsync()));
+            await Task.WhenAll(Apps.Select(a => a.CheckAsync()).Append(LauncherUpdate.CheckAsync()));
             _github.SaveCache();
             StatusText = $"上次檢查：{DateTime.Now:HH:mm}";
         }
@@ -232,6 +340,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         {
             case nameof(AppItemViewModel.HasUpdate):
             case nameof(AppItemViewModel.IsInstalled):
+                // 新 APP 下載後就不再標示「新」
+                if (sender is AppItemViewModel { IsNew: true, IsInstalled: true } installed)
+                    MarkSeen([installed.Definition.Id]);
                 OnPropertyChanged(nameof(UpdateCount));
                 OnPropertyChanged(nameof(InstalledCount));
                 // 正在下載的 APP 不要因為狀態改變就從目前分頁消失，等下次切換分頁再篩選

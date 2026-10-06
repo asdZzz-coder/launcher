@@ -25,7 +25,8 @@
 
 ## 新增或修改 APP
 
-APP 清單在 [AppLauncher/apps.json](AppLauncher/apps.json)：
+APP 清單在 [AppLauncher/apps.json](AppLauncher/apps.json)。**改完推上 GitHub（main 分支）就生效**：
+每個啟動器檢查更新時都會下載這個檔案，新加入的 APP 會自動出現並標示「新」，不用重新安裝啟動器。
 
 ```json
 {
@@ -42,7 +43,18 @@ APP 清單在 [AppLauncher/apps.json](AppLauncher/apps.json)：
 - repo 必須是**公開**的。私有 repo 未登入時 GitHub 會回應「找不到」，卡片上會顯示「repo 可能是私有的」。
 
 - 附件可以是 `.zip`（會解壓，ClickOnce 安裝包的 `.deploy` 檔會自動改回原檔名）或單一 `.exe`。
-- 改完重新建置即可。不想重新建置的話，把整份清單另存到 `%LocalAppData%\AppLauncher\apps.json`，啟動器會優先使用它。
+- 只想在某一台電腦用不同的清單：把整份清單另存到那台電腦的 `%LocalAppData%\AppLauncher\apps.json`，啟動器就只用它，不再讀 GitHub 上的清單。
+
+## 發佈啟動器新版本
+
+推送 `v` 開頭的標籤，GitHub Actions 會自動測試、產生安裝檔並發佈到 Releases：
+
+```bash
+git tag v1.3.1
+git push origin v1.3.1
+```
+
+已安裝的啟動器下次檢查更新時，上方會出現「APP 啟動器有新版本」，按「更新啟動器」就會下載並安裝，裝好後自動重新開啟。
 
 ## 開發
 
