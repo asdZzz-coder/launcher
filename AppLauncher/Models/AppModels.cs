@@ -4,7 +4,9 @@ namespace AppLauncher.Models;
 /// <param name="Id">資料夾名稱用的代號，只能用英數字與 -_。</param>
 /// <param name="Asset">Release 附件檔名的規則運算式（不分大小寫）。可以是 .zip 或單一 .exe。</param>
 /// <param name="Exe">要啟動的 exe 檔名，會在解壓後的資料夾裡找。</param>
-public sealed record AppDefinition(string Id, string Name, string Repo, string Asset, string Exe, string? Description = null);
+/// <param name="Icon">repo 裡圖示檔（.ico/.png）的路徑，還沒下載前用來顯示圖示。可省略。</param>
+public sealed record AppDefinition(string Id, string Name, string Repo, string Asset, string Exe,
+    string? Description = null, string? Icon = null);
 
 /// <summary>GitHub 上最新的 Release 與要下載的附件。</summary>
 public sealed record ReleaseInfo(string Tag, string AssetName, string DownloadUrl, long Size, string HtmlUrl, DateTimeOffset PublishedAt);

@@ -13,6 +13,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandledException;
+        ThemeManager.Initialize(this);
 
         // 同時開兩個啟動器會搶著下載、刪除同一個資料夾，所以只允許一個
         _singleInstance = new Mutex(true, $"AppLauncher-{Environment.UserName}", out var isFirst);

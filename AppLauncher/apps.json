@@ -5,7 +5,8 @@
     "description": "記錄車子保養和加油，自動算出油耗。",
     "repo": "asdZzz-coder/car",
     "asset": "^CarLog-ClickOnce.*\\.zip$",
-    "exe": "CarLog.exe"
+    "exe": "CarLog.exe",
+    "icon": "car/Assets/app.ico"
   },
   {
     "id": "servicerecord",
@@ -13,7 +14,8 @@
     "description": "居家服務紀錄與薪資計算，可匯出 Excel。",
     "repo": "asdZzz-coder/excel-mom-",
     "asset": "^ServiceRecord.*\\.zip$",
-    "exe": "ServiceRecord.exe"
+    "exe": "ServiceRecord.exe",
+    "icon": "ServiceRecord/Assets/app.ico"
   },
   {
     "id": "materials",
@@ -21,7 +23,8 @@
     "description": "整理部門內物料的名稱、分類、規格與數量。",
     "repo": "asdZzz-coder/materials",
     "asset": "^MaterialsKeeper-ClickOnce.*\\.zip$",
-    "exe": "MaterialsKeeper.exe"
+    "exe": "MaterialsKeeper.exe",
+    "icon": "materials/Assets/app.ico"
   },
   {
     "id": "password",
@@ -29,7 +32,8 @@
     "description": "分資料夾保存帳號密碼。",
     "repo": "asdZzz-coder/password",
     "asset": "^PasswordKeeper-ClickOnce.*\\.zip$",
-    "exe": "PasswordKeeper.exe"
+    "exe": "PasswordKeeper.exe",
+    "icon": "password/Assets/app.ico"
   },
   {
     "id": "ledger",
@@ -37,6 +41,16 @@
     "description": "收支、錢包、存錢目標與圖表。",
     "repo": "asdZzz-coder/tools",
     "asset": "^Ledger\\.exe$",
-    "exe": "Ledger.exe"
+    "exe": "Ledger.exe",
+    "icon": "ZZZ/Assets/AppIcon.png"
+  },
+  {
+    "id": "calendarnotes",
+    "name": "日曆記事本",
+    "description": "用月曆記事，點一天就能寫，打字自動儲存。",
+    "repo": "asdZzz-coder/NOTEBOOK",
+    "asset": "^CalendarNotes-Setup.*\\.zip$",
+    "exe": "CalendarNotes.exe",
+    "icon": "notebook/Assets/app.ico"
   }
 ]

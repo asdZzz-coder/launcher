@@ -2,7 +2,8 @@
 
 從 GitHub Releases 下載、更新、開啟和刪除自己寫的 Windows 小程式。
 
-- **批次下載／刪除**：勾選多個 APP，一次下載（或更新）或刪除。
+- **卡片介面**：每個 APP 一張卡片，顯示圖示（還沒下載也會從 repo 抓圖示）、說明和狀態；上方可切換「全部／已安裝／可更新」。跟著 Windows 設定自動切換淺色／深色模式。
+- **批次下載／刪除**：滑鼠移到卡片左上角勾選（或按「全選」），上方會出現「下載／更新」與「刪除」。
 - **更新標示**：GitHub 有新版時，圖示右上角出現橘色箭頭，並顯示「可更新 vX.Y.Z」；頂端也會提示可更新的數量，可一鍵「全部更新」。
 - **舊版照常可用**：更新會另外下載一個版本資料夾，舊版不會被刪掉；從版本選單選舊版就能開啟。不需要的版本可從「⋯」選單刪除。
 - 各 APP 的使用者資料存在 `%AppData%`，新舊版本共用同一份資料，刪除版本也不會刪到資料。
@@ -32,9 +33,12 @@ APP 清單在 [AppLauncher/apps.json](AppLauncher/apps.json)：
   "description": "記錄車子保養和加油，自動算出油耗。",
   "repo": "asdZzz-coder/car",              // GitHub 擁有者/repo（必須是公開 repo）
   "asset": "^CarLog-ClickOnce.*\\.zip$",   // Release 附件檔名的規則運算式
-  "exe": "CarLog.exe"                      // 要啟動的 exe，會在解壓後的資料夾裡找
+  "exe": "CarLog.exe",                     // 要啟動的 exe，會在解壓後的資料夾裡找
+  "icon": "car/Assets/app.ico"             // repo 裡的圖示（.ico/.png），還沒下載前顯示用，可省略
 }
 ```
+
+- repo 必須是**公開**的。私有 repo 未登入時 GitHub 會回應「找不到」，卡片上會顯示「repo 可能是私有的」。
 
 - 附件可以是 `.zip`（會解壓，ClickOnce 安裝包的 `.deploy` 檔會自動改回原檔名）或單一 `.exe`。
 - 改完重新建置即可。不想重新建置的話，把整份清單另存到 `%LocalAppData%\AppLauncher\apps.json`，啟動器會優先使用它。

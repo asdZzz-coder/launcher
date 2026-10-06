@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using AppLauncher.Models;
@@ -18,6 +19,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly DispatcherTimer _autoRefresh;
     private bool _isRefreshing;
     private string? _statusText;
+    private string _filter = "All";
 
     public MainViewModel(IReadOnlyList<AppDefinition> apps, AppStore store, GitHubService github)
     {
@@ -25,6 +27,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _github = github;
         Apps = apps.Select(a => new AppItemViewModel(a, store, github)).ToList();
         foreach (var app in Apps) app.PropertyChanged += OnAppChanged;
+        AppsView = CollectionViewSource.GetDefaultView(Apps);
+        AppsView.Filter = o => o is AppItemViewModel app && Filter switch
+        {
+            "Installed" => app.IsInstalled,
+            "Updates" => app.HasUpdate,
+            _ => true,
+        };
 
         RefreshCommand = new RelayCommand(() => _ = RefreshAsync(), () => !IsRefreshing);
         DownloadSelectedCommand = new RelayCommand(() => _ = DownloadAsync(Apps.Where(a => a.IsSelected)),
@@ -42,6 +51,34 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<AppItemViewModel> Apps { get; }
 
+    /// <summary>依上方分頁（全部／已安裝／可更新）篩選後的清單。</summary>
+    public ICollectionView AppsView { get; }
+
+    /// <summary>目前的分頁：All、Installed、Updates。</summary>
+    public string Filter
+    {
+        get => _filter;
+        set
+        {
+            if (!SetProperty(ref _filter, value)) return;
+            AppsView.Refresh();
+            OnPropertyChanged(nameof(IsViewEmpty));
+            OnPropertyChanged(nameof(EmptyText));
+        }
+    }
+
+    public bool IsViewEmpty => AppsView.IsEmpty;
+
+    public string EmptyText => Filter switch
+    {
+        "Installed" => "還沒有下載任何 APP",
+        "Updates" => "所有 APP 都是最新版",
+        _ => "清單裡沒有 APP",
+    };
+
+    public int AllCount => Apps.Count;
+    public int InstalledCount => Apps.Count(a => a.IsInstalled);
+
     public ICommand RefreshCommand { get; }
     public ICommand DownloadSelectedCommand { get; }
     public ICommand UpdateAllCommand { get; }
@@ -58,6 +95,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public int UpdateCount => Apps.Count(a => a.HasUpdate);
     public int SelectedCount => Apps.Count(a => a.IsSelected);
+    public bool HasSelection => SelectedCount > 0;
     public bool IsAnyBusy => Apps.Any(a => a.IsBusy);
 
     /// <summary>全選勾選框：全選 true、全不選 false、部分選 null。</summary>
@@ -75,6 +113,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         await Task.Run(_store.CleanupLeftovers);
         foreach (var app in Apps) app.ReloadInstalled();
+        _ = Task.WhenAll(Apps.Select(a => a.LoadRepoIconAsync(LauncherPaths.IconCache)));
         await RefreshAsync();
         _autoRefresh.Start();
     }
@@ -138,10 +177,19 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         switch (e.PropertyName)
         {
             case nameof(AppItemViewModel.HasUpdate):
+            case nameof(AppItemViewModel.IsInstalled):
                 OnPropertyChanged(nameof(UpdateCount));
+                OnPropertyChanged(nameof(InstalledCount));
+                // 正在下載的 APP 不要因為狀態改變就從目前分頁消失，等下次切換分頁再篩選
+                if (Filter != "All" && sender is AppItemViewModel { IsBusy: false })
+                {
+                    AppsView.Refresh();
+                    OnPropertyChanged(nameof(IsViewEmpty));
+                }
                 break;
             case nameof(AppItemViewModel.IsSelected):
                 OnPropertyChanged(nameof(SelectedCount));
+                OnPropertyChanged(nameof(HasSelection));
                 OnPropertyChanged(nameof(AllSelected));
                 RelayCommand.Refresh();
                 break;

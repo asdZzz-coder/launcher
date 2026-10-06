@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -28,6 +29,24 @@ public static partial class IconLoader
             }
         }
         catch (Exception ex) when (ex is ExternalException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>讀取 .ico/.png 圖檔；.ico 取最大的那一張。</summary>
+    public static ImageSource? FromFile(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+            var frame = decoder.Frames.OrderByDescending(f => f.PixelWidth).First();
+            frame.Freeze();
+            return frame;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException
+                                       or FileFormatException or InvalidOperationException or ArgumentException)
         {
             return null;
         }

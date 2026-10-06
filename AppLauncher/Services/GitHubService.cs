@@ -49,7 +49,7 @@ public sealed class GitHubService : IDisposable
             if (response.StatusCode == HttpStatusCode.NotModified && cached != null)
                 json = cached.Json;
             else if (response.StatusCode == HttpStatusCode.NotFound)
-                return null; // repo 還沒有任何 Release
+                return null; // repo 還沒有任何 Release，或 repo 是私有的（沒登入看不到）
             else if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
                 return FromCacheOr(url, app, "GitHub 查詢次數已達上限，請過一小時再重新整理");
             else
@@ -116,6 +116,29 @@ public sealed class GitHubService : IDisposable
         }
         if (total > 0 && done != total)
             throw new IOException($"下載不完整（{done:N0} / {total:N0} bytes）");
+    }
+
+    /// <summary>
+    /// 下載 repo 裡的圖示（apps.json 的 icon），還沒下載 APP 前顯示用。存在 iconDir，7 天內不重抓。
+    /// 抓不到就回傳舊的快取或 null，不影響其他功能。
+    /// </summary>
+    public async Task<string?> GetIconAsync(AppDefinition app, string iconDir, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(app.Icon)) return null;
+        var path = Path.Combine(iconDir, app.Id + Path.GetExtension(app.Icon).ToLowerInvariant());
+        if (File.Exists(path) && DateTime.Now - File.GetLastWriteTime(path) < TimeSpan.FromDays(7)) return path;
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(15));
+            var url = $"https://raw.githubusercontent.com/{app.Repo}/HEAD/{app.Icon.TrimStart('/')}";
+            var bytes = await _http.GetByteArrayAsync(url, timeout.Token);
+            Directory.CreateDirectory(iconDir);
+            await File.WriteAllBytesAsync(path, bytes, ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException
+                                       || (ex is TaskCanceledException && !ct.IsCancellationRequested)) { }
+        return File.Exists(path) ? path : null;
     }
 
     public void SaveCache()

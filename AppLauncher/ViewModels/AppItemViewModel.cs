@@ -10,7 +10,11 @@ using AppLauncher.Services;
 namespace AppLauncher.ViewModels;
 
 /// <summary>版本下拉選單的一個選項。</summary>
-public sealed record VersionOption(InstalledVersion Version, string Label);
+public sealed record VersionOption(InstalledVersion Version, string Label)
+{
+    // 下拉選單收合時顯示的文字
+    public override string ToString() => Label;
+}
 
 /// <summary>清單中的一個 APP：已下載的版本、GitHub 上的最新版、下載進度。</summary>
 public sealed class AppItemViewModel : ObservableObject
@@ -22,6 +26,7 @@ public sealed class AppItemViewModel : ObservableObject
     private VersionOption? _selectedVersion;
     private ReleaseInfo? _latest;
     private ImageSource? _icon;
+    private ImageSource? _repoIcon;
     private string? _status;
     private bool _hasError;
     private bool _isBusy;
@@ -85,7 +90,7 @@ public sealed class AppItemViewModel : ObservableObject
     public bool IsChecking
     {
         get => _isChecking;
-        private set { if (SetProperty(ref _isChecking, value)) OnPropertyChanged(nameof(DetailText)); }
+        private set { if (SetProperty(ref _isChecking, value)) NotifyBadge(); }
     }
     public bool IsIndeterminate { get => _isIndeterminate; private set => SetProperty(ref _isIndeterminate, value); }
     public double Progress { get => _progress; private set => SetProperty(ref _progress, value); }
@@ -118,19 +123,45 @@ public sealed class AppItemViewModel : ObservableObject
 
     public string DownloadText => IsInstalled ? $"更新到 {Latest?.Tag}" : $"下載 {Latest?.Tag}";
 
-    public string InstalledText => Versions.Count switch
+    /// <summary>
+    /// 卡片上的狀態標籤種類：Update（可更新）、Latest（已是最新）、Installed（已安裝但不知道最新版）、
+    /// Available（尚未下載）、Checking（檢查中）、None。
+    /// </summary>
+    public string BadgeKind =>
+        HasUpdate ? "Update"
+        : IsLatestInstalled ? "Latest"
+        : IsInstalled ? "Installed"
+        : Latest != null ? "Available"
+        : IsChecking ? "Checking"
+        : "None";
+
+    public string BadgeText => BadgeKind switch
     {
-        0 => "尚未下載",
-        1 => $"已安裝 {Newest!.Tag}",
-        _ => $"已安裝 {Versions.Count} 個版本",
+        "Update" => $"可更新 {Latest!.Tag}",
+        "Latest" => $"已是最新 {Latest!.Tag}",
+        "Installed" => $"已安裝 {Newest!.Tag}",
+        "Available" => $"{Latest!.Tag} · {FormatSize(Latest.Size)}",
+        "Checking" => "正在檢查…",
+        _ => "",
     };
 
-    public string? LatestText => Latest == null ? null
-        : $"GitHub 最新 {Latest.Tag}（{FormatSize(Latest.Size)}，{Latest.PublishedAt.LocalDateTime:yyyy/MM/dd}）";
+    /// <summary>滑鼠移到狀態標籤上時顯示的完整說明。</summary>
+    public string? BadgeToolTip
+    {
+        get
+        {
+            var lines = new List<string>();
+            if (IsInstalled) lines.Add($"已安裝：{string.Join("、", Versions.Select(v => v.Version.Tag))}");
+            if (Latest != null)
+                lines.Add($"GitHub 最新：{Latest.Tag}（{FormatSize(Latest.Size)}，{Latest.PublishedAt.LocalDateTime:yyyy/MM/dd} 發佈）");
+            return lines.Count == 0 ? null : string.Join("\n", lines);
+        }
+    }
 
-    /// <summary>卡片上的小字：已安裝什麼、GitHub 上最新是什麼。</summary>
-    public string DetailText => string.Join("  ·  ",
-        new[] { InstalledText, IsChecking ? "正在檢查更新…" : LatestText }.Where(s => !string.IsNullOrEmpty(s)));
+    public string UpdateText => $"更新到 {Latest?.Tag}";
+
+    /// <summary>還沒有圖示時的底色，每個 APP 固定一種顏色。</summary>
+    public Brush AvatarBrush => AvatarBrushes[(int)((uint)StableHash(Definition.Id) % AvatarBrushes.Length)];
 
     public string DeleteVersionText => SelectedVersion == null ? "刪除此版本" : $"刪除 {SelectedVersion.Version.Tag}";
 
@@ -145,15 +176,31 @@ public sealed class AppItemViewModel : ObservableObject
         {
             var v = installed[i];
             var isLatest = Latest != null ? VersionTag.Compare(v.Tag, Latest.Tag) >= 0 : i == 0;
-            Versions.Add(new VersionOption(v, isLatest ? $"{v.Tag}（最新）" : $"{v.Tag}（舊版）"));
+            Versions.Add(new VersionOption(v, isLatest ? $"{v.Tag} 最新" : $"{v.Tag} 舊版"));
         }
         SelectedVersion = Versions.FirstOrDefault(o => o.Version.Tag == selectTag) ?? Versions.FirstOrDefault();
-        Icon = Newest != null ? IconLoader.FromExe(Newest.ExePath) : null;
+        Icon = (Newest != null ? IconLoader.FromExe(Newest.ExePath) : null) ?? _repoIcon;
 
         foreach (var name in new[] { nameof(IsInstalled), nameof(Newest), nameof(HasUpdate), nameof(IsLatestInstalled),
-                                     nameof(CanDownload), nameof(DownloadText), nameof(InstalledText), nameof(LatestText), nameof(DetailText) })
+                                     nameof(CanDownload), nameof(DownloadText), nameof(UpdateText) })
             OnPropertyChanged(name);
+        NotifyBadge();
         RelayCommand.Refresh();
+    }
+
+    /// <summary>從 repo 抓圖示，還沒下載的 APP 也能顯示真正的圖示。</summary>
+    public async Task LoadRepoIconAsync(string iconDir)
+    {
+        var path = await _github.GetIconAsync(Definition, iconDir);
+        _repoIcon = path == null ? null : IconLoader.FromFile(path);
+        Icon ??= _repoIcon;
+    }
+
+    private void NotifyBadge()
+    {
+        OnPropertyChanged(nameof(BadgeKind));
+        OnPropertyChanged(nameof(BadgeText));
+        OnPropertyChanged(nameof(BadgeToolTip));
     }
 
     /// <summary>向 GitHub 查最新版。</summary>
@@ -164,7 +211,7 @@ public sealed class AppItemViewModel : ObservableObject
         try
         {
             Latest = await _github.GetLatestAsync(Definition, ct);
-            if (Latest == null) SetStatus("GitHub 上還沒有發佈任何版本", error: true);
+            if (Latest == null) SetStatus("GitHub 上找不到發佈的版本（repo 可能是私有的，或還沒發佈）", error: true);
             else if (HasError) SetStatus(null);
         }
         catch (OperationCanceledException) { }
@@ -300,4 +347,21 @@ public sealed class AppItemViewModel : ObservableObject
 
     private static string FormatSize(long bytes) =>
         bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} MB" : $"{Math.Max(1, bytes / 1024)} KB";
+
+    private static readonly Brush[] AvatarBrushes =
+    [
+        Gradient("#6366F1", "#8B5CF6"), Gradient("#0EA5E9", "#2563EB"), Gradient("#10B981", "#059669"),
+        Gradient("#F59E0B", "#EA580C"), Gradient("#EC4899", "#DB2777"), Gradient("#14B8A6", "#0891B2"),
+    ];
+
+    private static Brush Gradient(string from, string to)
+    {
+        var brush = new LinearGradientBrush((Color)ColorConverter.ConvertFromString(from),
+            (Color)ColorConverter.ConvertFromString(to), 45);
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>string.GetHashCode 每次執行都不同，自己算一個固定的。</summary>
+    private static int StableHash(string s) => s.Aggregate(17, (h, c) => unchecked(h * 31 + c));
 }
