@@ -52,5 +52,14 @@
     "asset": "^CalendarNotes-Setup.*\\.zip$",
     "exe": "CalendarNotes.exe",
     "icon": "notebook/Assets/app.ico"
+  },
+  {
+    "id": "workschedule",
+    "name": "工作排程表",
+    "description": "工令排程：材料入場、配電、交期的預計與實際日期。",
+    "repo": "asdZzz-coder/wsi_work",
+    "asset": "^WorkSchedule-ClickOnce.*\\.zip$",
+    "exe": "WorkSchedule.exe",
+    "icon": "schedule/Assets/app.ico"
   }
 ]
