@@ -9,7 +9,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>AppLauncher</AssemblyName>
     <Product>APP 啟動器</Product>
-    <Version>1.4.1</Version>
+    <Version>1.4.2</Version>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 

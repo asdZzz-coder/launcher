@@ -56,7 +56,7 @@ public sealed class AppItemViewModel : ObservableObject
         CloseCommand = new RelayCommand(() => _ = CloseAsync(), () => IsRunning && !IsClosing);
         DownloadCommand = new RelayCommand(() => _ = DownloadAsync(), () => CanDownload);
         CancelCommand = new RelayCommand(() => _cts?.Cancel(), () => IsBusy);
-        DeleteSelectedVersionCommand = new RelayCommand(() => DeleteSelectedVersion(), () => SelectedVersion != null && !IsBusy);
+        DeleteVersionsCommand = new RelayCommand(DeleteVersions, () => IsInstalled && !IsBusy);
         DeleteAllCommand = new RelayCommand(() => DeleteAll(confirm: true), () => IsInstalled && !IsBusy);
         OpenFolderCommand = new RelayCommand(OpenFolder, () => SelectedVersion != null);
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
@@ -90,7 +90,7 @@ public sealed class AppItemViewModel : ObservableObject
     public ICommand CloseCommand { get; }
     public ICommand DownloadCommand { get; }
     public ICommand CancelCommand { get; }
-    public ICommand DeleteSelectedVersionCommand { get; }
+    public ICommand DeleteVersionsCommand { get; }
     public ICommand DeleteAllCommand { get; }
     public ICommand OpenFolderCommand { get; }
     public ICommand OpenReleasePageCommand { get; }
@@ -106,7 +106,6 @@ public sealed class AppItemViewModel : ObservableObject
         set
         {
             if (!SetProperty(ref _selectedVersion, value)) return;
-            OnPropertyChanged(nameof(DeleteVersionText));
             OnPropertyChanged(nameof(DisplayStatus));
             OnPropertyChanged(nameof(IsRunning));
             RelayCommand.Refresh();
@@ -245,8 +244,6 @@ public sealed class AppItemViewModel : ObservableObject
 
     /// <summary>還沒有圖示時的底色，每個 APP 固定一種顏色。</summary>
     public Brush AvatarBrush => AvatarBrushes[(int)((uint)StableHash(Definition.Id) % AvatarBrushes.Length)];
-
-    public string DeleteVersionText => SelectedVersion == null ? "刪除此版本" : $"刪除 {SelectedVersion.Version.Tag}";
 
     /// <summary>重新讀取本機已下載的版本，盡量保留目前選的版本。</summary>
     public void ReloadInstalled(string? selectTag = null)
@@ -436,20 +433,41 @@ public sealed class AppItemViewModel : ObservableObject
         }
     }
 
-    private void DeleteSelectedVersion()
+    /// <summary>開視窗勾選要刪除哪些版本。</summary>
+    private void DeleteVersions()
     {
-        if (SelectedVersion is not { } option) return;
-        if (!Dialogs.Confirm($"確定要刪除「{Name}」的 {option.Version.Tag}？\n\n你在程式裡的資料不會被刪除。")) return;
-        try
+        if (!IsInstalled || IsBusy) return;
+        var dialog = new DeleteVersionsViewModel(Name, Versions.Select(o => o.Version).ToList(),
+            v => _running.Any(r => SamePath(r.ExePath, v.ExePath)));
+        if (Dialogs.ChooseVersionsToDelete(dialog)) DeleteVersions(dialog.Selected);
+    }
+
+    /// <summary>刪除這些版本。刪不掉的（還開著）跳過，其他照刪。</summary>
+    internal void DeleteVersions(IReadOnlyList<InstalledVersion> versions)
+    {
+        var deleted = new List<string>();
+        var failed = new List<string>();
+        foreach (var version in versions)
         {
-            _store.Delete(option.Version);
-            ReloadInstalled();
-            SetStatus($"已刪除 {option.Version.Tag}");
+            try
+            {
+                _store.Delete(version);
+                deleted.Add(version.Tag);
+            }
+            catch (IOException)
+            {
+                failed.Add(version.Tag);
+            }
         }
-        catch (IOException ex)
-        {
-            SetStatus(ex.Message, error: true);
-        }
+        // 全部刪光了就把整個 APP 資料夾（含殘留檔）一起清掉
+        if (_store.GetInstalled(Definition).Count == 0) _store.DeleteAll(Definition);
+        ReloadInstalled();
+
+        if (failed.Count == 0)
+            SetStatus($"已刪除 {string.Join("、", deleted)}");
+        else
+            SetStatus($"{string.Join("、", failed)} 無法刪除，可能還開著，請先關閉程式再試" +
+                      (deleted.Count > 0 ? $"（已刪除 {string.Join("、", deleted)}）" : ""), error: true);
     }
 
     /// <summary>刪除所有版本。批次刪除時由外面統一確認，所以 confirm 可關掉。</summary>
@@ -495,7 +513,7 @@ public sealed class AppItemViewModel : ObservableObject
     private static bool SamePath(string a, string b) =>
         string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
 
-    private static string FormatSize(long bytes) =>
+    internal static string FormatSize(long bytes) =>
         bytes >= 1024 * 1024 ? $"{bytes / 1024d / 1024d:0.#} MB" : $"{Math.Max(1, bytes / 1024)} KB";
 
     private static readonly Brush[] AvatarBrushes =

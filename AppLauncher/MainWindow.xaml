@@ -27,7 +27,7 @@
             <MenuItem Header="開啟此版本的資料夾" Tag="&#xE838;" Command="{Binding OpenFolderCommand}" />
             <MenuItem Header="在 GitHub 查看版本說明" Tag="&#xE774;" Command="{Binding OpenReleasePageCommand}" />
             <Separator />
-            <MenuItem Header="{Binding DeleteVersionText}" Tag="&#xE74D;" Command="{Binding DeleteSelectedVersionCommand}"
+            <MenuItem Header="選擇要刪除的版本…" Tag="&#xE74D;" Command="{Binding DeleteVersionsCommand}"
                       Style="{StaticResource DangerMenuItem}" />
             <MenuItem Header="刪除所有版本" Tag="&#xE74D;" Command="{Binding DeleteAllCommand}"
                       Style="{StaticResource DangerMenuItem}" />

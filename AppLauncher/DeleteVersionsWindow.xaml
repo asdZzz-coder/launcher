@@ -1,0 +1,81 @@
+<Window x:Class="AppLauncher.DeleteVersionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:AppLauncher.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:DeleteVersionsViewModel}"
+        Title="刪除版本" Icon="Assets/app.ico"
+        Width="500" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBrush}"
+        FontFamily="{StaticResource UiFont}" FontSize="13"
+        Foreground="{DynamicResource TextBrush}"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True">
+
+    <StackPanel Margin="24,20,24,20">
+        <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="勾選要刪除的版本。你在程式裡的資料不會被刪除。" Foreground="{DynamicResource SubTextBrush}"
+                   TextWrapping="Wrap" Margin="0,4,0,16" />
+
+        <!-- 版本清單：每個版本一列，整列都可以點 -->
+        <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto" Focusable="False">
+            <ItemsControl ItemsSource="{Binding Choices}" Focusable="False">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:VersionChoice}">
+                        <Border x:Name="Row" CornerRadius="10" BorderThickness="1" Margin="0,0,0,8"
+                                Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource LineBrush}">
+                            <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanDelete}"
+                                      Padding="0" Margin="14,10" HorizontalAlignment="Stretch">
+                                <StackPanel Margin="4,0,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Tag}" FontSize="14" FontWeight="SemiBold" />
+                                        <Border Style="{StaticResource Pill}" Background="{DynamicResource SuccessSoftBrush}"
+                                                Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                Visibility="{Binding IsLatest, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="最新" FontSize="11" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource SuccessTextBrush}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock x:Name="Detail" Text="{Binding Detail}" FontSize="12" Margin="0,2,0,0"
+                                               Foreground="{DynamicResource SubTextBrush}" />
+                                </StackPanel>
+                            </CheckBox>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsChecked}" Value="True">
+                                <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource ErrorBrush}" />
+                                <Setter TargetName="Row" Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding CanDelete}" Value="False">
+                                <Setter TargetName="Row" Property="Opacity" Value="0.6" />
+                                <Setter TargetName="Detail" Property="Foreground" Value="{DynamicResource UpdateTextBrush}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <Grid Margin="0,10,0,0">
+            <Button Style="{StaticResource GhostButton}" Command="{Binding KeepLatestCommand}" HorizontalAlignment="Left"
+                    Padding="10,0" Margin="-10,0,0,0" ToolTip="勾選最新版以外的所有版本">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE762;" Style="{StaticResource Glyph}" />
+                    <TextBlock Text="只保留最新版" />
+                </StackPanel>
+            </Button>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Style="{StaticResource SecondaryButton}" Content="取消" IsCancel="True" Margin="0,0,8,0" />
+                <Button Style="{StaticResource DangerButton}" Click="Delete_Click" IsEnabled="{Binding HasSelection}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE74D;" Style="{StaticResource Glyph}" />
+                        <TextBlock Text="{Binding DeleteText}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</Window>
