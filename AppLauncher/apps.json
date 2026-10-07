@@ -40,7 +40,7 @@
     "name": "簡易記帳",
     "description": "收支、錢包、存錢目標與圖表。",
     "repo": "asdZzz-coder/tools",
-    "asset": "^Ledger\\.exe$",
+    "asset": "^Ledger-Folder.*\\.zip$",
     "exe": "Ledger.exe",
     "icon": "ZZZ/Assets/AppIcon.png"
   },
