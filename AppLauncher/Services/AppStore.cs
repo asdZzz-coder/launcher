@@ -100,14 +100,13 @@ public sealed class AppStore(string root)
         if (Directory.Exists(dir) && GetInstalled(app).Count == 0) TryDeleteDirectory(dir);
     }
 
-    public static void Launch(InstalledVersion version)
-    {
+    /// <summary>開啟這個版本。回傳的 Process 用完要 Dispose。</summary>
+    public static Process? Launch(InstalledVersion version) =>
         Process.Start(new ProcessStartInfo(version.ExePath)
         {
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(version.ExePath)!,
-        })?.Dispose();
-    }
+        });
 
     /// <summary>清掉上次沒裝完或沒刪完的殘留資料夾。</summary>
     public void CleanupLeftovers()

@@ -52,8 +52,8 @@ APP 清單在 [AppLauncher/apps.json](AppLauncher/apps.json)。**改完推上 Gi
 推送 `v` 開頭的標籤，GitHub Actions 會自動測試、產生安裝檔並發佈到 Releases：
 
 ```bash
-git tag v1.4.1
-git push origin v1.4.1
+git tag v1.4.2
+git push origin v1.4.2
 ```
 
 已安裝的啟動器下次檢查更新時，上方會出現「APP 啟動器有新版本」，按「更新啟動器」就會下載並安裝，裝好後自動重新開啟。
@@ -88,3 +88,4 @@ dotnet publish AppLauncher -c Release -o publish
 - 沒登入的 GitHub API 每小時只能查 60 次。啟動器用 ETag 快取，內容沒變時不算次數，正常使用不會碰到上限；離線時會顯示上次查到的版本。
 - 有些 APP（例如車輛紀錄、居服紀錄表）限制同時只能開一個視窗，這時新舊版本不能同時開著。
 - APP 開著時無法刪除該版本，請先關閉程式。
+- 開著 Windows「智慧型應用程式控制」的電腦會擋下 Microsoft 判斷信任度不夠、又沒有數位簽章的程式，卡片上會顯示「被 Windows「智慧型應用程式控制」擋下來了」。同一個檔案可能今天能開、明天被擋，這是 Windows 的判斷，啟動器無法繞過。

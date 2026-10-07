@@ -363,14 +363,42 @@ public sealed class AppItemViewModel : ObservableObject
         if (SelectedVersion is not { } option) return;
         try
         {
-            AppStore.Launch(option.Version);
+            var startedAt = DateTime.Now;
+            var process = AppStore.Launch(option.Version);
             _launchedAt = DateTime.UtcNow;
             if (HasError) SetStatus(null);
             SetRunning(_running.Append(option.Version).ToList());
+            if (process != null) _ = WatchStartupAsync(process, option.Version, startedAt);
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == SmartAppControl.BlockedError)
+        {
+            SetStatus(SmartAppControl.BlockedMessage, error: true);
         }
         catch (Exception ex) when (ex is Win32Exception or FileNotFoundException or InvalidOperationException)
         {
             SetStatus($"無法開啟：{ex.Message}", error: true);
+        }
+    }
+
+    /// <summary>
+    /// 開啟後 10 秒內就出錯結束的話告訴使用者，不然看起來像按了沒反應。
+    /// 結束代碼 0 的不算：有些 APP 已經開著時，第二個會把視窗叫到前面後自己結束。
+    /// </summary>
+    private async Task WatchStartupAsync(Process process, InstalledVersion version, DateTime startedAt)
+    {
+        using (process)
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            try { await process.WaitForExitAsync(cts.Token); }
+            catch (OperationCanceledException) { return; } // 正常開著
+            catch (InvalidOperationException) { return; }
+
+            if (process.ExitCode == 0) return;
+            var blocked = await Task.Run(() => SmartAppControl.BlockedSince(version.Directory, startedAt));
+            _runningStatus = null;
+            SetRunning(_running.Where(v => !SamePath(v.ExePath, version.ExePath)).ToList());
+            SetStatus(blocked ? SmartAppControl.BlockedMessage : $"{version.Tag} 開啟後馬上結束了（錯誤代碼 0x{process.ExitCode:X8}）",
+                error: true);
         }
     }
 
