@@ -11,14 +11,19 @@ namespace AppLauncher.Services;
 
 /// <summary>
 /// 向 GitHub 查詢最新 Release 並下載附件。只支援公開 repo，不需要 token。
-/// 未登入的 API 每小時只能查 60 次，所以用 ETag 快取：內容沒變時 GitHub 回 304，不算次數。
+/// 先從 github.com 網頁查（沒有次數限制）；網頁格式看不懂時才改用 API。
+/// 未登入的 API 每小時只能查 60 次，而且同一個網路的電腦共用，連 304 也算一次，所以不能常用。
 /// 連不上網路時改用上次快取的結果。
 /// </summary>
-public sealed class GitHubService : IDisposable
+public sealed partial class GitHubService : IDisposable
 {
     private sealed record CacheEntry(string? ETag, string Json);
 
+    /// <summary>網頁查詢的結果：查到版本、確定沒有版本，或網頁格式看不懂（改用 API）。</summary>
+    private enum WebResult { Found, NoRelease, Unknown }
+
     private readonly HttpClient _http;
+    private readonly HttpClient _noRedirect; // 查最新版時要讀轉址的目的地，不能自動跟過去
     private readonly string _cachePath;
     private readonly ConcurrentDictionary<string, CacheEntry> _cache;
 
@@ -26,9 +31,15 @@ public sealed class GitHubService : IDisposable
     {
         _cachePath = cachePath;
         _cache = LoadCache(cachePath);
-        _http = handler == null ? new HttpClient() : new HttpClient(handler);
-        _http.Timeout = Timeout.InfiniteTimeSpan; // 大檔下載很久，逾時由各呼叫自己控制
-        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AppLauncher", "1.0"));
+        _http = handler == null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+        _noRedirect = handler == null
+            ? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false })
+            : new HttpClient(handler, disposeHandler: false);
+        foreach (var client in new[] { _http, _noRedirect })
+        {
+            client.Timeout = Timeout.InfiniteTimeSpan; // 大檔下載很久，逾時由各呼叫自己控制
+            client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AppLauncher", "1.0"));
+        }
     }
 
     public async Task<ReleaseInfo?> GetLatestAsync(AppDefinition app, CancellationToken ct = default)
@@ -39,6 +50,16 @@ public sealed class GitHubService : IDisposable
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(20));
+
+            var (result, webJson) = await GetLatestFromWebAsync(app, timeout.Token);
+            if (result == WebResult.NoRelease) return null;
+            if (result == WebResult.Found)
+            {
+                // 存成跟 API 一樣的格式，離線時沿用
+                _cache[url] = new CacheEntry(null, webJson!);
+                return ParseRelease(webJson!, app);
+            }
+
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
             request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
@@ -66,6 +87,94 @@ public sealed class GitHubService : IDisposable
         return ParseRelease(json, app);
     }
 
+    /// <summary>
+    /// 從網頁查最新版：github.com/&lt;repo&gt;/releases/latest 會轉址到 /releases/tag/&lt;版本&gt;，
+    /// 再從 expanded_assets 頁面讀出附件的檔名、大小與時間。回傳的 JSON 與 API 同格式。
+    /// </summary>
+    private async Task<(WebResult, string?)> GetLatestFromWebAsync(AppDefinition app, CancellationToken ct)
+    {
+        var baseUrl = $"https://github.com/{app.Repo}/releases";
+        using (var latest = await _noRedirect.GetAsync(baseUrl + "/latest", HttpCompletionOption.ResponseHeadersRead, ct))
+        {
+            if (latest.StatusCode == HttpStatusCode.NotFound) return (WebResult.NoRelease, null); // repo 不存在或是私有的
+            if ((int)latest.StatusCode is < 300 or >= 400 || latest.Headers.Location is not { } location)
+                return (WebResult.Unknown, null);
+
+            var match = TagInLocation().Match(location.OriginalString);
+            if (!match.Success)
+                // 沒有任何 Release 時會轉到 /releases
+                return location.OriginalString.TrimEnd('/').EndsWith("/releases", StringComparison.OrdinalIgnoreCase)
+                    ? (WebResult.NoRelease, null) : (WebResult.Unknown, null);
+
+            var tag = Uri.UnescapeDataString(match.Groups["tag"].Value);
+            using var assets = await _http.GetAsync($"{baseUrl}/expanded_assets/{Uri.EscapeDataString(tag)}", ct);
+            if (!assets.IsSuccessStatusCode) return (WebResult.Unknown, null);
+            var html = await assets.Content.ReadAsStringAsync(ct);
+            var json = ParseExpandedAssets(html, tag, $"{baseUrl}/tag/{Uri.EscapeDataString(tag)}");
+            return json == null ? (WebResult.Unknown, null) : (WebResult.Found, json);
+        }
+    }
+
+    /// <summary>把 expanded_assets 頁面轉成 API 格式的 JSON。一個附件都找不到時回傳 null。</summary>
+    internal static string? ParseExpandedAssets(string html, string tag, string htmlUrl)
+    {
+        var links = AssetLink().Matches(html);
+        if (links.Count == 0) return null;
+
+        var assets = new List<object>();
+        DateTimeOffset? published = null;
+        for (var i = 0; i < links.Count; i++)
+        {
+            // 每個附件的大小與時間，寫在它的連結到下一個連結之間
+            var start = links[i].Index + links[i].Length;
+            var end = i + 1 < links.Count ? links[i + 1].Index : html.Length;
+            var block = html[start..end];
+
+            var href = WebUtility.HtmlDecode(links[i].Groups["href"].Value);
+            var size = AssetSize().Match(block) is { Success: true } s ? ToBytes(s) : 0;
+            if (AssetTime().Match(block) is { Success: true } t &&
+                DateTimeOffset.TryParse(t.Groups[1].Value, out var time) && (published == null || time > published))
+                published = time;
+
+            assets.Add(new Dictionary<string, object>
+            {
+                ["name"] = Uri.UnescapeDataString(href[(href.LastIndexOf('/') + 1)..]),
+                ["size"] = size,
+                ["browser_download_url"] = "https://github.com" + href,
+            });
+        }
+
+        var release = new Dictionary<string, object> { ["tag_name"] = tag, ["html_url"] = htmlUrl, ["assets"] = assets };
+        if (published != null) release["published_at"] = published.Value;
+        return JsonSerializer.Serialize(release);
+    }
+
+    /// <summary>網頁上的大小是約略值（例如 61.9 MB），只用來顯示；下載時以實際檔案大小為準。</summary>
+    private static long ToBytes(Match size)
+    {
+        var value = double.Parse(size.Groups["value"].Value, System.Globalization.CultureInfo.InvariantCulture);
+        var unit = size.Groups["unit"].Value.ToUpperInvariant() switch
+        {
+            "KB" => 1024d,
+            "MB" => 1024d * 1024,
+            "GB" => 1024d * 1024 * 1024,
+            _ => 1d,
+        };
+        return (long)(value * unit);
+    }
+
+    [GeneratedRegex(@"/releases/tag/(?<tag>[^/?#]+)/?(?:[?#]|$)")]
+    private static partial Regex TagInLocation();
+
+    [GeneratedRegex("href=\"(?<href>/[^\"]+/releases/download/[^\"]+)\"")]
+    private static partial Regex AssetLink();
+
+    [GeneratedRegex(@">\s*(?<value>\d+(?:\.\d+)?)\s*(?<unit>Bytes|Byte|B|KB|MB|GB)\s*<", RegexOptions.IgnoreCase)]
+    private static partial Regex AssetSize();
+
+    [GeneratedRegex("datetime=\"([^\"]+)\"")]
+    private static partial Regex AssetTime();
+
     private ReleaseInfo? FromCacheOr(string url, AppDefinition app, string message) =>
         _cache.TryGetValue(url, out var cached) ? ParseRelease(cached.Json, app) : throw new InvalidOperationException(message);
 
@@ -91,12 +200,16 @@ public sealed class GitHubService : IDisposable
         throw new InvalidOperationException($"{tag} 沒有附上符合「{app.Asset}」的檔案");
     }
 
-    /// <summary>下載到 destination，progress 回報 0~1（不知道大小時回報 -1）。</summary>
+    /// <summary>
+    /// 下載到 destination，progress 回報 0~1（不知道大小時回報 -1）。
+    /// expectedSize 可能是網頁上的約略值，只在伺服器沒給大小時拿來估進度。
+    /// </summary>
     public async Task DownloadAsync(string url, string destination, long expectedSize, IProgress<double>? progress, CancellationToken ct)
     {
         using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
-        var total = response.Content.Headers.ContentLength ?? expectedSize;
+        var exactSize = response.Content.Headers.ContentLength;
+        var total = exactSize ?? expectedSize;
 
         await using var source = await response.Content.ReadAsStreamAsync(ct);
         await using var target = File.Create(destination);
@@ -111,11 +224,11 @@ public sealed class GitHubService : IDisposable
             if (done - lastReport >= 256 * 1024 || done == total)
             {
                 lastReport = done;
-                progress?.Report(total > 0 ? (double)done / total : -1);
+                progress?.Report(total > 0 ? Math.Min(1, (double)done / total) : -1);
             }
         }
-        if (total > 0 && done != total)
-            throw new IOException($"下載不完整（{done:N0} / {total:N0} bytes）");
+        if (exactSize is > 0 && done != exactSize)
+            throw new IOException($"下載不完整（{done:N0} / {exactSize:N0} bytes）");
     }
 
     /// <summary>
@@ -190,5 +303,9 @@ public sealed class GitHubService : IDisposable
         return new ConcurrentDictionary<string, CacheEntry>();
     }
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose()
+    {
+        _http.Dispose();
+        _noRedirect.Dispose();
+    }
 }

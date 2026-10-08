@@ -59,7 +59,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             () => Apps.Any(a => a.IsSelected && a.IsInstalled && !a.IsBusy));
         OpenAppsFolderCommand = new RelayCommand(OpenAppsFolder);
 
-        // 開著的時候每 30 分鐘自動檢查一次更新（有 ETag 快取，不會耗掉 GitHub 查詢次數）
+        // 開著的時候每 30 分鐘自動檢查一次更新（從 GitHub 網頁查，不會耗掉 API 查詢次數）
         _autoRefresh = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
         _autoRefresh.Tick += (_, _) => _ = RefreshAsync();
 
