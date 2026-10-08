@@ -27,6 +27,15 @@
     "icon": "materials/Assets/app.ico"
   },
   {
+    "id": "toolbox",
+    "name": "工具盤點",
+    "description": "工具的購入、報廢、借出與盤點紀錄，可匯出 Excel。",
+    "repo": "asdZzz-coder/TOOLBOX",
+    "asset": "^ToolboxKeeper-ClickOnce.*\\.zip$",
+    "exe": "ToolboxKeeper.exe",
+    "icon": "toolbox/Assets/app.ico"
+  },
+  {
     "id": "password",
     "name": "Password Keeper",
     "description": "分資料夾保存帳號密碼。",
