@@ -70,5 +70,14 @@
     "asset": "^WorkSchedule-ClickOnce.*\\.zip$",
     "exe": "WorkSchedule.exe",
     "icon": "schedule/Assets/app.ico"
+  },
+  {
+    "id": "food",
+    "name": "餐廳收藏",
+    "description": "收藏餐廳，依國家、縣市、地區分類。",
+    "repo": "asdZzz-coder/food",
+    "asset": "^FoodKeeper-ClickOnce.*\\.zip$",
+    "exe": "FoodKeeper.exe",
+    "icon": "food/Assets/app.ico"
   }
 ]
