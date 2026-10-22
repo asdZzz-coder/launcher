@@ -80,10 +80,15 @@ public static partial class Catalog
                 throw new FormatException($"「{app.Name}」缺少 asset 或 exe");
             try { _ = new Regex(app.Asset); }
             catch (ArgumentException) { throw new FormatException($"「{app.Name}」的 asset 規則運算式寫錯了"); }
+            if (app.FolderArg != null && !FolderArgPattern().IsMatch(app.FolderArg))
+                throw new FormatException($"「{app.Name}」的 folderArg 要寫成 --名稱，例如 --root");
         }
         return apps;
     }
 
     [GeneratedRegex("^[A-Za-z0-9_-]+$")]
     private static partial Regex IdPattern();
+
+    [GeneratedRegex("^--?[A-Za-z][A-Za-z0-9-]*$")]
+    private static partial Regex FolderArgPattern();
 }

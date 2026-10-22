@@ -98,7 +98,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private AppItemViewModel CreateItem(AppDefinition definition)
     {
-        var item = new AppItemViewModel(definition, _store, _github, MoveBy, CanMoveBy);
+        var item = new AppItemViewModel(definition, _store, _github, MoveBy, CanMoveBy,
+            _settings, () => _settings.Save(_settingsPath));
         item.PropertyChanged += OnAppChanged;
         return item;
     }

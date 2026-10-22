@@ -100,13 +100,36 @@ public sealed class AppStore(string root)
         if (Directory.Exists(dir) && GetInstalled(app).Count == 0) TryDeleteDirectory(dir);
     }
 
-    /// <summary>開啟這個版本。回傳的 Process 用完要 Dispose。</summary>
-    public static Process? Launch(InstalledVersion version) =>
+    /// <summary>開啟這個版本，可以帶參數（例如 --root "D:\文件"）。回傳的 Process 用完要 Dispose。</summary>
+    public static Process? Launch(InstalledVersion version, IReadOnlyList<string>? args = null) =>
         Process.Start(new ProcessStartInfo(version.ExePath)
         {
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(version.ExePath)!,
+            Arguments = JoinArguments(args ?? []),
         });
+
+    /// <summary>
+    /// 組成命令列參數：有空白或引號的加上引號。引號前和結尾的反斜線要加倍，
+    /// 不然「"D:\"」會被程式讀成「D:"」。
+    /// </summary>
+    internal static string JoinArguments(IEnumerable<string> args) => string.Join(" ", args.Select(Quote));
+
+    private static string Quote(string arg)
+    {
+        if (arg.Length > 0 && !arg.Any(c => char.IsWhiteSpace(c) || c == '"')) return arg;
+        var sb = new System.Text.StringBuilder("\"");
+        int backslashes = 0;
+        foreach (var c in arg)
+        {
+            if (c == '\\') { backslashes++; continue; }
+            sb.Append('\\', c == '"' ? backslashes * 2 + 1 : backslashes);
+            backslashes = 0;
+            sb.Append(c);
+        }
+        sb.Append('\\', backslashes * 2);
+        return sb.Append('"').ToString();
+    }
 
     /// <summary>清掉上次沒裝完或沒刪完的殘留資料夾。</summary>
     public void CleanupLeftovers()

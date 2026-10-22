@@ -21,6 +21,8 @@ public sealed class AppItemViewModel : ObservableObject
 {
     private readonly AppStore _store;
     private readonly GitHubService _github;
+    private readonly LauncherSettings? _settings;
+    private readonly Action? _saveSettings;
     private CancellationTokenSource? _cts;
 
     private VersionOption? _selectedVersion;
@@ -42,12 +44,16 @@ public sealed class AppItemViewModel : ObservableObject
     private DateTime _launchedAt;
 
     /// <param name="move">往前（-1）／往後（+1）移動這個 APP 的位置，由清單提供。</param>
+    /// <param name="settings">記住最近開過的資料夾（有 folderArg 的 APP 用）；saveSettings 把設定存檔。</param>
     public AppItemViewModel(AppDefinition definition, AppStore store, GitHubService github,
-        Action<AppItemViewModel, int>? move = null, Func<AppItemViewModel, int, bool>? canMove = null)
+        Action<AppItemViewModel, int>? move = null, Func<AppItemViewModel, int, bool>? canMove = null,
+        LauncherSettings? settings = null, Action? saveSettings = null)
     {
         Definition = definition;
         _store = store;
         _github = github;
+        _settings = settings;
+        _saveSettings = saveSettings;
 
         MoveEarlierCommand = new RelayCommand(() => move?.Invoke(this, -1), () => canMove?.Invoke(this, -1) ?? false);
         MoveLaterCommand = new RelayCommand(() => move?.Invoke(this, 1), () => canMove?.Invoke(this, 1) ?? false);
@@ -358,10 +364,16 @@ public sealed class AppItemViewModel : ObservableObject
     private void Launch()
     {
         if (SelectedVersion is not { } option) return;
+        IReadOnlyList<string>? args = null;
+        if (Definition.FolderArg is { } folderArg)
+        {
+            if (ChooseFolder() is not { } folder) return;
+            args = [folderArg, folder];
+        }
         try
         {
             var startedAt = DateTime.Now;
-            var process = AppStore.Launch(option.Version);
+            var process = AppStore.Launch(option.Version, args);
             _launchedAt = DateTime.UtcNow;
             if (HasError) SetStatus(null);
             SetRunning(_running.Append(option.Version).ToList());
@@ -375,6 +387,20 @@ public sealed class AppItemViewModel : ObservableObject
         {
             SetStatus($"無法開啟：{ex.Message}", error: true);
         }
+    }
+
+    /// <summary>有 folderArg 的 APP：先選這次要讀取的資料夾（最近開過的放在清單裡），取消則回傳 null。</summary>
+    private string? ChooseFolder()
+    {
+        var picker = new FolderPickerViewModel(Name, _settings?.GetRecentFolders(Definition.Id) ?? []);
+        var ok = Dialogs.ChooseFolder(picker);
+        if (_settings != null)
+        {
+            foreach (var removed in picker.Removed) _settings.ForgetFolder(Definition.Id, removed);
+            if (ok && picker.Selected != null) _settings.RememberFolder(Definition.Id, picker.Selected.Path);
+            _saveSettings?.Invoke();
+        }
+        return ok ? picker.Selected?.Path : null;
     }
 
     /// <summary>

@@ -87,6 +87,7 @@
     "repo": "asdZzz-coder/document",
     "asset": "^DocumentKeeper-ClickOnce.*\\.zip$",
     "exe": "DocumentKeeper.exe",
-    "icon": "document/Assets/app.ico"
+    "icon": "document/Assets/app.ico",
+    "folderArg": "--root"
   }
 ]

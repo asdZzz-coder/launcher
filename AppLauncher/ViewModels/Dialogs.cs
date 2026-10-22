@@ -12,6 +12,10 @@ public static class Dialogs
     public static bool ChooseVersionsToDelete(DeleteVersionsViewModel vm) =>
         new DeleteVersionsWindow(vm) { Owner = Application.Current?.MainWindow }.ShowDialog() == true;
 
+    /// <summary>開「選擇資料夾」視窗，按「開啟」回傳 true。</summary>
+    public static bool ChooseFolder(FolderPickerViewModel vm) =>
+        new FolderPickerWindow(vm) { Owner = Application.Current?.MainWindow }.ShowDialog() == true;
+
     public static void Error(string message, string title = "APP 啟動器") =>
         MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
 }

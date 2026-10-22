@@ -24,6 +24,34 @@ public sealed class LauncherSettings
     /// </summary>
     public List<string>? SeenApps { get; set; }
 
+    /// <summary>有 folderArg 的 APP 最近開過的資料夾：APP id → 資料夾（最近的在前）。</summary>
+    public Dictionary<string, List<string>> RecentFolders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>每個 APP 最多記住幾個資料夾。</summary>
+    public const int MaxRecentFolders = 8;
+
+    public IReadOnlyList<string> GetRecentFolders(string appId) =>
+        RecentFolders.TryGetValue(appId, out var list) ? list : [];
+
+    /// <summary>把資料夾移到最前面（同一個資料夾不分大小寫只留一筆），超過上限的舊資料夾忘掉。</summary>
+    public void RememberFolder(string appId, string folder)
+    {
+        var list = GetRecentFolders(appId)
+            .Where(f => !SameFolder(f, folder))
+            .Prepend(folder)
+            .Take(MaxRecentFolders)
+            .ToList();
+        RecentFolders[appId] = list;
+    }
+
+    public void ForgetFolder(string appId, string folder)
+    {
+        if (RecentFolders.TryGetValue(appId, out var list)) list.RemoveAll(f => SameFolder(f, folder));
+    }
+
+    internal static bool SameFolder(string a, string b) =>
+        string.Equals(Path.TrimEndingDirectorySeparator(a), Path.TrimEndingDirectorySeparator(b), StringComparison.OrdinalIgnoreCase);
+
     public static LauncherSettings Load(string path)
     {
         try
@@ -33,6 +61,11 @@ public sealed class LauncherSettings
                 if (settings.ViewMode != ListView) settings.ViewMode = GridView;
                 settings.Theme = ThemeManager.Normalize(settings.Theme);
                 settings.Order ??= [];
+                // JSON 讀回來的字典是區分大小寫的，換成不分大小寫的
+                var recent = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (id, folders) in settings.RecentFolders ?? new())
+                    if (folders != null) recent.TryAdd(id, folders.Where(f => !string.IsNullOrWhiteSpace(f)).ToList());
+                settings.RecentFolders = recent;
                 return settings;
             }
         }
