@@ -79,5 +79,14 @@
     "asset": "^FoodKeeper-ClickOnce.*\\.zip$",
     "exe": "FoodKeeper.exe",
     "icon": "food/Assets/app.ico"
+  },
+  {
+    "id": "document",
+    "name": "文件整理",
+    "description": "用多層資料夾整理電腦上的文件，可自訂存放位置。",
+    "repo": "asdZzz-coder/document",
+    "asset": "^DocumentKeeper-ClickOnce.*\\.zip$",
+    "exe": "DocumentKeeper.exe",
+    "icon": "document/Assets/app.ico"
   }
 ]
