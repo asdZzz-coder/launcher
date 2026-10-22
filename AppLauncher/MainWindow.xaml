@@ -33,6 +33,47 @@
                       Style="{StaticResource DangerMenuItem}" />
         </ContextMenu>
 
+        <!-- ===== 「資料夾」那一列：要讀取資料夾的 APP（apps.json 有 folderArg）才顯示，按一下換資料夾 ===== -->
+        <Style x:Key="FolderRowButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Command" Value="{Binding ChooseFolderCommand}" />
+            <Setter Property="ToolTip" Value="{Binding FolderToolTip}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding FolderText}" />
+            <Setter Property="Visibility" Value="{Binding UsesFolder, Converter={StaticResource BoolToVisibility}}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="10,7" BorderThickness="1"
+                                Background="{DynamicResource NeutralSoftBrush}" BorderBrush="Transparent">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                           Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding FolderText}" FontSize="12.5" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                                <TextBlock x:Name="Edit" Grid.Column="2" Text="&#xE70F;" FontFamily="{StaticResource IconFont}" FontSize="11"
+                                           Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Edit" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding Folder}" Value="{x:Null}">
+                                <Setter Property="Foreground" Value="{DynamicResource SubTextBrush}" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- ===== 方格：一個 APP 的卡片 ===== -->
         <DataTemplate x:Key="AppTile" DataType="{x:Type vm:AppItemViewModel}">
             <Border x:Name="Tile" Margin="8" CornerRadius="16" BorderThickness="1"
@@ -47,6 +88,9 @@
                     <DockPanel Margin="20,26,20,18">
                         <!-- 下方的操作區 -->
                         <StackPanel DockPanel.Dock="Bottom" Margin="0,18,0,0">
+                            <!-- 要讀取的資料夾 -->
+                            <Button Style="{StaticResource FolderRowButton}" Margin="0,0,0,8" />
+
                             <!-- 已安裝：選版本 + 開啟 -->
                             <Grid Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVisibility}}">
                                 <Grid.ColumnDefinitions>
@@ -343,6 +387,8 @@
                         </StackPanel>
                         <TextBlock Text="{Binding Description}" Foreground="{DynamicResource SubTextBrush}" FontSize="12.5"
                                    Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                        <!-- 要讀取的資料夾 -->
+                        <Button Style="{StaticResource FolderRowButton}" HorizontalAlignment="Left" MaxWidth="380" Margin="0,8,0,0" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">

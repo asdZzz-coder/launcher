@@ -1,3 +1,4 @@
+using AppLauncher.Models;
 using AppLauncher.Services;
 using AppLauncher.ViewModels;
 
@@ -115,6 +116,48 @@ public class FolderPickerTests
         vm.Remove(vm.Choices[0]);
         Assert.Equal(@"D:\A", vm.Selected?.Path);
         Assert.Equal([@"d:\b"], vm.Removed);
+    }
+
+    [Fact]
+    public void Picker_TextsDependOnPurpose()
+    {
+        var setting = new FolderPickerViewModel("文件整理", []);
+        Assert.Equal("使用這個資料夾", setting.ConfirmText);
+        Assert.Equal("「文件整理」要讀取的資料夾", setting.Title);
+        var launching = new FolderPickerViewModel("文件整理", [], forLaunch: true);
+        Assert.Equal("開啟", launching.ConfirmText);
+        Assert.Equal("開啟「文件整理」", launching.Title);
+    }
+
+    // ---------- 卡片上的「資料夾」 ----------
+
+    private static AppItemViewModel Card(AppDefinition definition, LauncherSettings settings) =>
+        new(definition, new AppStore(Path.Combine(Path.GetTempPath(), "AppLauncherTests-" + Guid.NewGuid().ToString("N"))),
+            new GitHubService(Path.Combine(Path.GetTempPath(), $"AppLauncherTests-{Guid.NewGuid():N}.json")),
+            settings: settings);
+
+    [Fact]
+    public void Card_ShowsMostRecentFolder()
+    {
+        var settings = new LauncherSettings();
+        var card = Card(new AppDefinition("document", "文件整理", "o/r", "x", "x.exe", FolderArg: "--root"), settings);
+        Assert.True(card.UsesFolder);
+        Assert.Null(card.Folder);
+        Assert.StartsWith("尚未設定", card.FolderText);
+
+        settings.RememberFolder("document", @"\\nas\share\公司文件");
+        Assert.Equal(@"\\nas\share\公司文件", card.Folder);
+        Assert.Equal("公司文件", card.FolderText);
+    }
+
+    [Fact]
+    public void Card_WithoutFolderArgHidesFolderRow()
+    {
+        var settings = new LauncherSettings();
+        settings.RememberFolder("carlog", @"D:\A");
+        var card = Card(new AppDefinition("carlog", "車輛紀錄", "o/r", "x", "x.exe"), settings);
+        Assert.False(card.UsesFolder);
+        Assert.Null(card.Folder);
     }
 
     [Fact]

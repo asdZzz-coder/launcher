@@ -66,6 +66,7 @@ public sealed class AppItemViewModel : ObservableObject
         DeleteAllCommand = new RelayCommand(() => DeleteAll(confirm: true), () => IsInstalled && !IsBusy);
         OpenFolderCommand = new RelayCommand(OpenFolder, () => SelectedVersion != null);
         OpenReleasePageCommand = new RelayCommand(OpenReleasePage);
+        ChooseFolderCommand = new RelayCommand(() => ChooseFolder(forLaunch: false), () => UsesFolder);
     }
 
     public AppDefinition Definition { get; private set; }
@@ -80,6 +81,7 @@ public sealed class AppItemViewModel : ObservableObject
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(Description));
         OnPropertyChanged(nameof(Initial));
+        NotifyFolder();
         if (iconChanged) _repoIcon = null;
     }
 
@@ -102,6 +104,27 @@ public sealed class AppItemViewModel : ObservableObject
     public ICommand OpenReleasePageCommand { get; }
     public ICommand MoveEarlierCommand { get; }
     public ICommand MoveLaterCommand { get; }
+    public ICommand ChooseFolderCommand { get; }
+
+    // ---------- 要讀取的資料夾（有 folderArg 的 APP） ----------
+
+    /// <summary>這個 APP 開啟時要帶資料夾：卡片上顯示「資料夾」那一列。</summary>
+    public bool UsesFolder => Definition.FolderArg != null;
+
+    /// <summary>目前設定的資料夾（最近選的那個），還沒設定為 null。</summary>
+    public string? Folder => UsesFolder ? _settings?.GetRecentFolders(Definition.Id).FirstOrDefault() : null;
+
+    public string FolderText => Folder is { } folder ? FolderPickerViewModel.DisplayName(folder) : "尚未設定，按這裡選擇資料夾";
+
+    public string FolderToolTip => Folder is { } folder ? $"{folder}\n按一下可以換資料夾" : "選擇開啟時要讀取的資料夾";
+
+    private void NotifyFolder()
+    {
+        OnPropertyChanged(nameof(UsesFolder));
+        OnPropertyChanged(nameof(Folder));
+        OnPropertyChanged(nameof(FolderText));
+        OnPropertyChanged(nameof(FolderToolTip));
+    }
 
     /// <summary>正在被拖曳（卡片變半透明）。</summary>
     public bool IsDragging { get => _isDragging; set => SetProperty(ref _isDragging, value); }
@@ -367,7 +390,8 @@ public sealed class AppItemViewModel : ObservableObject
         IReadOnlyList<string>? args = null;
         if (Definition.FolderArg is { } folderArg)
         {
-            if (ChooseFolder() is not { } folder) return;
+            // 用卡片上設定的資料夾；還沒設定就先請使用者選
+            if ((Folder ?? ChooseFolder(forLaunch: true)) is not { } folder) return;
             args = [folderArg, folder];
         }
         try
@@ -390,9 +414,10 @@ public sealed class AppItemViewModel : ObservableObject
     }
 
     /// <summary>有 folderArg 的 APP：先選這次要讀取的資料夾（最近開過的放在清單裡），取消則回傳 null。</summary>
-    private string? ChooseFolder()
+    /// <param name="forLaunch">按「開啟」時還沒設定資料夾：選好後直接開啟（按鈕文字是「開啟」）。</param>
+    private string? ChooseFolder(bool forLaunch)
     {
-        var picker = new FolderPickerViewModel(Name, _settings?.GetRecentFolders(Definition.Id) ?? []);
+        var picker = new FolderPickerViewModel(Name, _settings?.GetRecentFolders(Definition.Id) ?? [], forLaunch: forLaunch);
         var ok = Dialogs.ChooseFolder(picker);
         if (_settings != null)
         {
@@ -400,7 +425,11 @@ public sealed class AppItemViewModel : ObservableObject
             if (ok && picker.Selected != null) _settings.RememberFolder(Definition.Id, picker.Selected.Path);
             _saveSettings?.Invoke();
         }
-        return ok ? picker.Selected?.Path : null;
+        NotifyFolder();
+        var folder = ok ? picker.Selected?.Path : null;
+        if (folder != null && !forLaunch)
+            SetStatus(IsRunning ? $"下次開啟會讀取「{FolderPickerViewModel.DisplayName(folder)}」" : null);
+        return folder;
     }
 
     /// <summary>

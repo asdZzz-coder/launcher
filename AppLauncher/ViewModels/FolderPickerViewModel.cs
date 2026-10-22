@@ -14,7 +14,7 @@ public sealed class FolderChoice(string path) : ObservableObject
     public string Path { get; } = path;
 
     /// <summary>顯示用的名稱：資料夾名稱；磁碟根目錄或網路分享根目錄就顯示整個路徑。</summary>
-    public string Name => System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(Path)) is { Length: > 0 } name ? name : Path;
+    public string Name => FolderPickerViewModel.DisplayName(Path);
 
     /// <summary>NAS 或網路磁碟（\\伺服器\分享 或對應的磁碟機代號）。</summary>
     public bool IsNetwork => FolderPickerViewModel.IsNetworkPath(Path);
@@ -40,9 +40,13 @@ public sealed class FolderChoice(string path) : ObservableObject
     public bool CanOpen => State != FolderState.Missing;
 }
 
-/// <summary>開啟 APP 前選要讀取哪個資料夾：最近開過的資料夾 + 選擇其他資料夾。</summary>
+/// <summary>選 APP 要讀取哪個資料夾：最近選過的資料夾 + 選擇其他資料夾。</summary>
 public sealed class FolderPickerViewModel : ObservableObject
 {
+    /// <summary>顯示用的名稱：資料夾名稱；磁碟根目錄或網路分享根目錄就顯示整個路徑。</summary>
+    public static string DisplayName(string path) =>
+        System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(path)) is { Length: > 0 } name ? name : path;
+
     /// <summary>確認資料夾在不在最多等幾秒。連不上的 NAS 要等 Windows 逾時，可能好幾十秒。</summary>
     public static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(6);
 
@@ -51,9 +55,12 @@ public sealed class FolderPickerViewModel : ObservableObject
 
     /// <param name="recent">最近開過的資料夾，最近的在前。</param>
     /// <param name="exists">檢查資料夾是否存在（測試時可替換）。</param>
-    public FolderPickerViewModel(string appName, IReadOnlyList<string> recent, Func<string, bool>? exists = null)
+    /// <param name="forLaunch">按「開啟」時才選（選好就開啟）；否則是在卡片上設定資料夾。</param>
+    public FolderPickerViewModel(string appName, IReadOnlyList<string> recent, Func<string, bool>? exists = null,
+        bool forLaunch = false)
     {
         AppName = appName;
+        ForLaunch = forLaunch;
         _exists = exists ?? Directory.Exists;
         Choices = new ObservableCollection<FolderChoice>(recent.Select(p => Track(new FolderChoice(p))));
         Selected = Choices.FirstOrDefault();
@@ -62,7 +69,9 @@ public sealed class FolderPickerViewModel : ObservableObject
     }
 
     public string AppName { get; }
-    public string Title => $"開啟「{AppName}」";
+    public bool ForLaunch { get; }
+    public string Title => ForLaunch ? $"開啟「{AppName}」" : $"「{AppName}」要讀取的資料夾";
+    public string ConfirmText => ForLaunch ? "開啟" : "使用這個資料夾";
 
     public ObservableCollection<FolderChoice> Choices { get; }
     public bool IsEmpty => Choices.Count == 0;
