@@ -89,5 +89,14 @@
     "exe": "DocumentKeeper.exe",
     "icon": "document/Assets/app.ico",
     "folderArg": "--root"
+  },
+  {
+    "id": "discharge",
+    "name": "Discharge",
+    "description": "物料資料庫與機台出料表單，可以從資料庫多選出料。",
+    "repo": "asdZzz-coder/Discharge",
+    "asset": "^Discharge-ClickOnce.*\\.zip$",
+    "exe": "Discharge.exe",
+    "icon": "Discharge/Assets/app.ico"
   }
 ]
